@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 )
 
-// Inputs:
+// Inputs holds the three versions required for a three-way merge.
 //
 //	Base   = last-rendered snapshot (state/...)
 //	Ours   = new rendered output (what we'd write now)
@@ -31,19 +31,19 @@ func ThreeWay(in Inputs) (*Result, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer os.RemoveAll(tmp)
+	defer func() { _ = os.RemoveAll(tmp) }()
 
 	oursPath := filepath.Join(tmp, "ours")
 	basePath := filepath.Join(tmp, "base")
 	theirsPath := filepath.Join(tmp, "theirs")
 
-	if err := os.WriteFile(oursPath, in.Ours, 0o644); err != nil {
+	if err := os.WriteFile(oursPath, in.Ours, 0o600); err != nil {
 		return nil, err
 	}
-	if err := os.WriteFile(basePath, in.Base, 0o644); err != nil {
+	if err := os.WriteFile(basePath, in.Base, 0o600); err != nil {
 		return nil, err
 	}
-	if err := os.WriteFile(theirsPath, in.Theirs, 0o644); err != nil {
+	if err := os.WriteFile(theirsPath, in.Theirs, 0o600); err != nil {
 		return nil, err
 	}
 
