@@ -1,0 +1,3 @@
+# Global instructions
+
+Be helpful.

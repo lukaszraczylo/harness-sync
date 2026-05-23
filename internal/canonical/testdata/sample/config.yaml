@@ -1,0 +1,2 @@
+enabled_harnesses: [claude-code, crush]
+active_profile: home

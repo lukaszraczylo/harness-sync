@@ -1,0 +1,4 @@
+servers:
+  - name: filepuff
+    command: /usr/local/bin/filepuff
+    transport: stdio
