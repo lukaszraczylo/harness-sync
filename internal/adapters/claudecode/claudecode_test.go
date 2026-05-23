@@ -48,6 +48,48 @@ func TestRenderProducesExpectedTargets(t *testing.T) {
 	assert.Contains(t, settingsBody, "filepuff")
 	assert.Contains(t, settingsBody, "/bin/filepuff")
 }
+func TestRenderMergesExistingSettings(t *testing.T) {
+	home := t.TempDir()
+	base := filepath.Join(home, ".claude")
+	require.NoError(t, os.MkdirAll(base, 0o750))
+
+	// Existing settings.json with user-managed keys.
+	existing := map[string]any{
+		"hooks":       map[string]any{"preToolUse": []string{"/bin/hook"}},
+		"permissions": map[string]any{"allow": []string{"Bash"}},
+		"env":         map[string]any{"ANTHROPIC_DEFAULT_MODEL": "opus"},
+	}
+	body, _ := json.Marshal(existing)
+	require.NoError(t, os.WriteFile(filepath.Join(base, "settings.json"), body, 0o600))
+
+	ad := New(WithHome(home))
+	b := &canonical.Bundle{
+		Root: "/canon",
+		MCP: canonical.MCPRegistry{Servers: []canonical.MCPServer{
+			{Name: "filepuff", Command: "/bin/filepuff"},
+		}},
+	}
+	fs, err := ad.Render(b)
+	require.NoError(t, err)
+
+	seen := map[string]adapter.File{}
+	fs.ForEach(func(f adapter.File) { seen[f.Dest] = f })
+
+	settingsDest := filepath.Join(base, "settings.json")
+	var parsed map[string]any
+	require.NoError(t, json.Unmarshal(seen[settingsDest].Content, &parsed))
+
+	// User keys preserved.
+	assert.Contains(t, parsed, "hooks")
+	assert.Contains(t, parsed, "permissions")
+	assert.Contains(t, parsed, "env")
+	// MCP updated.
+	mcp := parsed["mcpServers"].(map[string]any)
+	assert.Contains(t, mcp, "filepuff")
+	// MCP entries must NOT have a "type" field (claude-code style).
+	fp := mcp["filepuff"].(map[string]any)
+	assert.NotContains(t, fp, "type")
+}
 
 func TestImport(t *testing.T) {
 	home := t.TempDir()

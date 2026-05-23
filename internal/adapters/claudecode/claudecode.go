@@ -8,7 +8,6 @@ import (
 	"github.com/lukaszraczylo/harness-sync/internal/adapter"
 	"github.com/lukaszraczylo/harness-sync/internal/adapter/common"
 	"github.com/lukaszraczylo/harness-sync/internal/canonical"
-	"github.com/lukaszraczylo/harness-sync/internal/render"
 )
 
 const name = "claude-code"
@@ -51,6 +50,9 @@ func (a *Adapter) Detect() bool {
 }
 
 // Render produces the FileSet that applies the canonical bundle to claude-code.
+// settings.json is MERGED into any existing file so user-managed keys
+// settings.json is MERGED into any existing file so user-managed keys
+// (hooks, permissions, env, …) are preserved.
 func (a *Adapter) Render(b *canonical.Bundle) (*adapter.FileSet, error) {
 	fs := adapter.NewFileSet()
 	base := filepath.Join(a.home, ".claude")
@@ -76,23 +78,22 @@ func (a *Adapter) Render(b *canonical.Bundle) (*adapter.FileSet, error) {
 		Content: []byte(instructions),
 	})
 
-	settings, err := renderSettings(b)
+	settingsPath := filepath.Join(base, "settings.json")
+	existing, _ := os.ReadFile(settingsPath)
+	overlay := map[string]any{
+		"mcpServers": common.BuildMCPMapStyled(&b.MCP, common.MCPClaudeStyle),
+	}
+	merged, err := common.MergeJSONKeys(existing, overlay)
 	if err != nil {
 		return nil, err
 	}
 	fs.Add(adapter.File{
-		Dest:    filepath.Join(base, "settings.json"),
+		Dest:    settingsPath,
 		Kind:    adapter.RenderedFile,
-		Content: settings,
+		Content: merged,
 	})
 
 	return fs, nil
-}
-
-func renderSettings(b *canonical.Bundle) ([]byte, error) {
-	return render.JSON(map[string]any{
-		"mcpServers": common.BuildMCPMap(&b.MCP),
-	})
 }
 
 // Import reads claude-code config from home and returns a canonical ImportResult.

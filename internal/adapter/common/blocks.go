@@ -48,6 +48,45 @@ func buildModels(models []canonical.Model) []map[string]any {
 	return out
 }
 
+// ProvidersAsMap returns a name-keyed map of provider objects for harnesses
+// like opencode that use `provider` (singular, map-shaped) instead of a slice.
+// The gateway entry is keyed "harness-sync-gateway"; upstreams use their name.
+func ProvidersAsMap(p *canonical.Profile) map[string]any {
+	out := map[string]any{}
+	if p.Gateway.URL != "" {
+		entry := map[string]any{
+			"name": "harness-sync gateway",
+			"options": map[string]any{
+				"baseURL": p.Gateway.URL,
+				"apiKey":  p.Gateway.Token,
+			},
+		}
+		if models := buildModels(p.Models); len(models) > 0 {
+			modelsMap := map[string]any{}
+			for _, m := range p.Models {
+				modelsMap[m.ID] = map[string]any{"name": m.ID}
+			}
+			entry["models"] = modelsMap
+		}
+		out["harness-sync-gateway"] = entry
+	}
+	for _, up := range p.Upstreams {
+		entry := map[string]any{"name": up.Name}
+		opts := map[string]any{}
+		if up.BaseURL != "" {
+			opts["baseURL"] = up.BaseURL
+		}
+		if up.APIKey != "" {
+			opts["apiKey"] = up.APIKey
+		}
+		if len(opts) > 0 {
+			entry["options"] = opts
+		}
+		out[up.Name] = entry
+	}
+	return out
+}
+
 // BuildMCPMap returns canonical MCP servers as a name -> object map.
 // Empty map (not nil) is returned when there are no servers so the caller
 // can decide whether to include the key.

@@ -8,7 +8,6 @@ import (
 	"github.com/lukaszraczylo/harness-sync/internal/adapter"
 	"github.com/lukaszraczylo/harness-sync/internal/adapter/common"
 	"github.com/lukaszraczylo/harness-sync/internal/canonical"
-	"github.com/lukaszraczylo/harness-sync/internal/render"
 )
 
 const name = "kilo"
@@ -51,6 +50,10 @@ func (a *Adapter) Detect() bool {
 }
 
 // Render produces the FileSet that applies the canonical bundle to kilo.
+// kilo.json is MERGED to preserve user-managed keys ($schema, small_model,
+// instructions, permission, compaction, watcher, formatter, skills).
+// Key "model" is a plain string; MCP uses "mcp" with local/remote type entries.
+// No "providers" key — kilo has no such concept.
 func (a *Adapter) Render(b *canonical.Bundle) (*adapter.FileSet, error) {
 	fs := adapter.NewFileSet()
 	base := filepath.Join(a.home, ".config", "kilo")
@@ -61,28 +64,25 @@ func (a *Adapter) Render(b *canonical.Bundle) (*adapter.FileSet, error) {
 		SymlinkTarget: filepath.Join(b.Root, "agents"),
 	})
 
-	cfg, err := renderConfig(b)
+	cfgPath := filepath.Join(base, "kilo.json")
+	existing, _ := os.ReadFile(cfgPath)
+	overlay := map[string]any{
+		"model": b.Profile.Gateway.DefaultModel,
+	}
+	if mcp := common.BuildMCPMapStyled(&b.MCP, common.MCPOpencodeStyle); len(mcp) > 0 {
+		overlay["mcp"] = mcp
+	}
+	merged, err := common.MergeJSONKeys(existing, overlay)
 	if err != nil {
 		return nil, err
 	}
 	fs.Add(adapter.File{
-		Dest:    filepath.Join(base, "kilo.json"),
+		Dest:    cfgPath,
 		Kind:    adapter.RenderedFile,
-		Content: cfg,
+		Content: merged,
 	})
 
 	return fs, nil
-}
-
-func renderConfig(b *canonical.Bundle) ([]byte, error) {
-	out := map[string]any{
-		"model":     b.Profile.Gateway.DefaultModel,
-		"providers": common.BuildProviders(&b.Profile),
-	}
-	if mcp := common.BuildMCPMap(&b.MCP); len(mcp) > 0 {
-		out["mcp"] = mcp
-	}
-	return render.JSON(out)
 }
 
 // Import reads kilo config from home and returns a canonical ImportResult.

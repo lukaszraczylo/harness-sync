@@ -8,7 +8,6 @@ import (
 	"github.com/lukaszraczylo/harness-sync/internal/adapter"
 	"github.com/lukaszraczylo/harness-sync/internal/adapter/common"
 	"github.com/lukaszraczylo/harness-sync/internal/canonical"
-	"github.com/lukaszraczylo/harness-sync/internal/render"
 )
 
 const name = "crush"
@@ -49,6 +48,8 @@ func (a *Adapter) Detect() bool {
 }
 
 // Render produces the FileSet that applies the canonical bundle to crush.
+// crush.json is MERGED so user-managed keys ($schema, lsp, options, permissions) are preserved.
+// MCP key is "mcp" (not "mcpServers"); entries include a "type" field.
 func (a *Adapter) Render(b *canonical.Bundle) (*adapter.FileSet, error) {
 	fs := adapter.NewFileSet()
 	base := filepath.Join(a.home, ".config", "crush")
@@ -59,28 +60,26 @@ func (a *Adapter) Render(b *canonical.Bundle) (*adapter.FileSet, error) {
 		SymlinkTarget: filepath.Join(b.Root, "skills"),
 	})
 
-	cfg, err := renderConfig(b)
+	cfgPath := filepath.Join(base, "crush.json")
+	existing, _ := os.ReadFile(cfgPath)
+	overlay := map[string]any{
+		"providers":     common.BuildProviders(&b.Profile),
+		"default_model": b.Profile.Gateway.DefaultModel,
+	}
+	if mcp := common.BuildMCPMapStyled(&b.MCP, common.MCPCrushStyle); len(mcp) > 0 {
+		overlay["mcp"] = mcp
+	}
+	merged, err := common.MergeJSONKeys(existing, overlay)
 	if err != nil {
 		return nil, err
 	}
 	fs.Add(adapter.File{
-		Dest:    filepath.Join(base, "crush.json"),
+		Dest:    cfgPath,
 		Kind:    adapter.RenderedFile,
-		Content: cfg,
+		Content: merged,
 	})
 
 	return fs, nil
-}
-
-func renderConfig(b *canonical.Bundle) ([]byte, error) {
-	out := map[string]any{
-		"providers":     common.BuildProviders(&b.Profile),
-		"default_model": b.Profile.Gateway.DefaultModel,
-	}
-	if mcp := common.BuildMCPMap(&b.MCP); len(mcp) > 0 {
-		out["mcpServers"] = mcp
-	}
-	return render.JSON(out)
 }
 
 // Import reads crush config from home and returns a canonical ImportResult.

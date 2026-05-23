@@ -16,7 +16,7 @@ func importFrom(home string) (*adapter.ImportResult, error) {
 		return nil, err
 	}
 	if cfgBody != "" {
-		mcpServers, mcpErr := common.ParseMCPFromJSON([]byte(cfgBody), "mcpServers")
+		mcpServers, mcpErr := common.ParseMCPFromJSON([]byte(cfgBody), "mcp")
 		if mcpErr != nil {
 			return nil, mcpErr
 		}

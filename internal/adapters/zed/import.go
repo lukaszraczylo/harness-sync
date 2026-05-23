@@ -1,4 +1,4 @@
-package crush
+package zed
 
 import (
 	"path/filepath"
@@ -8,8 +8,10 @@ import (
 )
 
 func importFrom(home string) (*adapter.ImportResult, error) {
-	cfgPath := filepath.Join(home, ".config", "crush", "crush.json")
-	servers, err := common.ImportMCPFromJSONFile(cfgPath, "mcp")
+	cfgPath := filepath.Join(home, ".config", "zed", "settings.json")
+	// context_servers entries use source:"custom" for stdio; the MCP command
+	// field maps directly to canonical MCPServer.Command.
+	servers, err := common.ImportMCPFromJSONFile(cfgPath, "context_servers")
 	if err != nil {
 		return nil, err
 	}

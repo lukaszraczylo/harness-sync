@@ -275,6 +275,47 @@ harness-sync/
 - **YAML library:** `goccy/go-yaml` (preserves comments) vs `gopkg.in/yaml.v3`. Recommend goccy since canonical YAML is hand-edited and comments matter.
 - **Adapter discovery:** static registry slice (decided: yes; simple, fast).
 
+## Grounded harness schemas
+
+Verified from live config files and official docs (2026-05-23).
+
+### Config file locations and top-level key ownership
+
+| Harness | Config file | Managed by harness-sync | User-managed (preserve) |
+|---|---|---|---|
+| claude-code | `~/.claude/settings.json` | `mcpServers` | `hooks`, `permissions`, `env`, and everything else |
+| crush | `~/.config/crush/crush.json` | `providers`, `default_model`, `mcp` | `$schema`, `lsp`, `options`, `permissions` |
+| kilo | `~/.config/kilo/kilo.json` | `model`, `mcp` | `$schema`, `small_model`, `instructions`, `permission`, `compaction`, `watcher`, `formatter`, `skills` |
+| opencode | `~/.config/opencode/opencode.jsonc` | `provider`, `model`, `mcp` | `$schema`, `agent`, `instructions`, and everything else |
+| zed | `~/.config/zed/settings.json` | `agent`, `context_servers` | everything else (theme, fonts, keybindings, …) |
+| goose | `~/.config/goose/config.yaml` | `GOOSE_PROVIDER`, `GOOSE_MODEL`, `extensions` | `GOOSE_TEMPERATURE` and everything else |
+
+### MCP / server key names
+
+| Harness | Key | Entry shape |
+|---|---|---|
+| claude-code | `mcpServers` (map) | `{command, args, env, url, transport}` — no `type` field |
+| crush | `mcp` (map) | `{type: stdio\|http\|sse, command, args, env}` or `{type: http\|sse, url}` |
+| kilo | `mcp` (map) | `{type: local\|remote, command: []string, enabled}` or `{type: remote, url, enabled}` |
+| opencode | `mcp` (map) | `{type: local\|remote, command: []string, enabled}` or `{type: remote, url, enabled}` |
+| zed | `context_servers` (map) | `{enabled, source: "custom", command, args}` or `{enabled, url}` |
+| goose | `extensions` (map) | `{type: stdio, cmd, args, enabled}` — no MCP key; goose extension format |
+
+### Model key names
+
+| Harness | Provider key | Model key |
+|---|---|---|
+| claude-code | — (none) | `env.ANTHROPIC_DEFAULT_MODEL` (string) |
+| crush | `providers` (array of objects) | `default_model` (string) |
+| kilo | — (no providers) | `model` (string, e.g. `"llmgw/anthropic/claude-sonnet-4-6"`) |
+| opencode | `provider` (singular, map keyed by name) | `model` (string) |
+| zed | — | `agent.default_model` (object `{provider, model}`) |
+| goose | `GOOSE_PROVIDER` (string) | `GOOSE_MODEL` (string) |
+
+### Merge policy
+
+All adapters write config files using **merge-not-replace**: existing top-level keys not in the managed set are preserved verbatim. This prevents harness-sync from destroying user configuration on every apply.
+
 ## Acceptance criteria
 
 1. `harness-sync init` on a fresh machine with several harness configs produces a populated, git-committed canonical tree without data loss.
