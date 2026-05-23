@@ -29,6 +29,13 @@ func main() {
 
 	root := cli.NewRoot(version)
 	root.AddCommand(cli.NewDetect(reg))
+	root.AddCommand(cli.NewApply(reg))
+	root.AddCommand(cli.NewDiff(reg))
+	root.AddCommand(cli.NewShow(reg))
+	root.AddCommand(cli.NewInit(reg))
+	root.AddCommand(cli.NewProfile())
+	root.AddCommand(cli.NewRollback())
+	root.AddCommand(cli.NewAdapter(reg))
 
 	if err := root.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
