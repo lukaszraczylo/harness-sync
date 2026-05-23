@@ -36,6 +36,7 @@ func main() {
 	root.AddCommand(cli.NewProfile(reg))
 	root.AddCommand(cli.NewRollback())
 	root.AddCommand(cli.NewAdapter(reg))
+	root.AddCommand(cli.NewUpdate())
 
 	if err := root.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
