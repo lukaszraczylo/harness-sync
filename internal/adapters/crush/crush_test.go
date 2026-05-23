@@ -46,7 +46,7 @@ func TestCrushRenderProducesExpectedTargets(t *testing.T) {
 func TestCrushImportRoundtrip(t *testing.T) {
 	home := t.TempDir()
 	base := filepath.Join(home, ".config", "crush")
-	require.NoError(t, os.MkdirAll(base, 0o755))
+	require.NoError(t, os.MkdirAll(base, 0o750))
 
 	// Minimal crush.json
 	cfg := map[string]any{
@@ -55,7 +55,7 @@ func TestCrushImportRoundtrip(t *testing.T) {
 		},
 	}
 	body, _ := json.Marshal(cfg)
-	require.NoError(t, os.WriteFile(filepath.Join(base, "crush.json"), body, 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(base, "crush.json"), body, 0o600))
 
 	ad := New(WithHome(home))
 	res, err := ad.Import(home)

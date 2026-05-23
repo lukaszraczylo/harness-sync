@@ -9,6 +9,18 @@ import (
 	"github.com/lukaszraczylo/harness-sync/internal/canonical"
 )
 
+type crushMCPEntry struct { //nolint:govet // fieldalignment: map+slice+3 strings irreducible
+	Env       map[string]string `json:"env"`
+	Args      []string          `json:"args"`
+	Command   string            `json:"command"`
+	URL       string            `json:"url"`
+	Transport string            `json:"transport"`
+}
+
+type crushConfig struct {
+	MCPServers map[string]crushMCPEntry `json:"mcpServers"`
+}
+
 func importFrom(home string) (*adapter.ImportResult, error) {
 	cfgPath := filepath.Join(home, ".config", "crush", "crush.json")
 	body, err := os.ReadFile(cfgPath)
@@ -19,15 +31,7 @@ func importFrom(home string) (*adapter.ImportResult, error) {
 		return nil, err
 	}
 
-	var doc struct {
-		MCPServers map[string]struct {
-			Command   string            `json:"command"`
-			Args      []string          `json:"args"`
-			URL       string            `json:"url"`
-			Transport string            `json:"transport"`
-			Env       map[string]string `json:"env"`
-		} `json:"mcpServers"`
-	}
+	var doc crushConfig
 	_ = json.Unmarshal(body, &doc)
 
 	res := &adapter.ImportResult{}
