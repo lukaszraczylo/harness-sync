@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/lukaszraczylo/harness-sync/internal/adapter"
+	"github.com/lukaszraczylo/harness-sync/internal/adapter/common"
 	"github.com/lukaszraczylo/harness-sync/internal/canonical"
 	"github.com/lukaszraczylo/harness-sync/internal/render"
 )
@@ -89,28 +90,8 @@ func (a *Adapter) Render(b *canonical.Bundle) (*adapter.FileSet, error) {
 }
 
 func renderSettings(b *canonical.Bundle) ([]byte, error) {
-	mcp := map[string]any{}
-	for _, s := range b.MCP.Servers {
-		entry := map[string]any{}
-		if s.Command != "" {
-			entry["command"] = s.Command
-		}
-		if len(s.Args) > 0 {
-			entry["args"] = s.Args
-		}
-		if s.URL != "" {
-			entry["url"] = s.URL
-		}
-		if s.Transport != "" {
-			entry["transport"] = s.Transport
-		}
-		if len(s.Env) > 0 {
-			entry["env"] = s.Env
-		}
-		mcp[s.Name] = entry
-	}
 	return render.JSON(map[string]any{
-		"mcpServers": mcp,
+		"mcpServers": common.BuildMCPMap(&b.MCP),
 	})
 }
 

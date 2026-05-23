@@ -1,75 +1,32 @@
 package opencode
 
 import (
-	"encoding/json"
-	"os"
 	"path/filepath"
-	"regexp"
-	"strings"
 
 	"github.com/lukaszraczylo/harness-sync/internal/adapter"
-	"github.com/lukaszraczylo/harness-sync/internal/canonical"
+	"github.com/lukaszraczylo/harness-sync/internal/adapter/common"
 )
 
 func importFrom(home string) (*adapter.ImportResult, error) {
 	base := filepath.Join(home, ".config", "opencode")
 	res := &adapter.ImportResult{}
 
-	cfgBody, err := readIfExists(filepath.Join(base, "opencode.jsonc"))
+	cfgBody, err := common.ReadIfExists(filepath.Join(base, "opencode.jsonc"))
 	if err != nil {
 		return nil, err
 	}
 	if cfgBody != "" {
-		clean := stripJSONComments(cfgBody)
-		var doc struct {
-			MCPServers map[string]struct { //nolint:govet // fieldalignment: map+slice+3 strings irreducible
-				Env       map[string]string `json:"env"`
-				Args      []string          `json:"args"`
-				Command   string            `json:"command"`
-				URL       string            `json:"url"`
-				Transport string            `json:"transport"`
-			} `json:"mcpServers"`
+		mcpServers, mcpErr := common.ParseMCPFromJSON([]byte(cfgBody), "mcpServers")
+		if mcpErr != nil {
+			return nil, mcpErr
 		}
-		_ = json.Unmarshal([]byte(clean), &doc)
-		for nm, v := range doc.MCPServers {
-			res.MCP = append(res.MCP, canonical.MCPServer{
-				Name:      nm,
-				Command:   v.Command,
-				Args:      v.Args,
-				URL:       v.URL,
-				Transport: v.Transport,
-				Env:       v.Env,
-			})
-		}
+		res.MCP = mcpServers
 	}
 
-	body, err := readIfExists(filepath.Join(base, "AGENTS.md"))
+	instructions, err := common.ReadIfExists(filepath.Join(base, "AGENTS.md"))
 	if err != nil {
 		return nil, err
 	}
-	res.Instructions = body
-
+	res.Instructions = instructions
 	return res, nil
-}
-
-var (
-	blockComment = regexp.MustCompile(`(?s)/\*.*?\*/`)
-	lineComment  = regexp.MustCompile(`(?m)//[^\n]*`)
-)
-
-func stripJSONComments(s string) string {
-	s = blockComment.ReplaceAllString(s, "")
-	s = lineComment.ReplaceAllString(s, "")
-	return strings.TrimSpace(s)
-}
-
-func readIfExists(path string) (string, error) {
-	b, err := os.ReadFile(path)
-	if os.IsNotExist(err) {
-		return "", nil
-	}
-	if err != nil {
-		return "", err
-	}
-	return string(b), nil
 }

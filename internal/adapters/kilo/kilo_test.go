@@ -23,6 +23,9 @@ func TestKiloRender(t *testing.T) {
 			Gateway: canonical.Gateway{URL: "https://gw", Token: "dummy", DefaultModel: "sonnet"},
 			Models:  []canonical.Model{{ID: "claude-sonnet-4-6", Alias: "sonnet"}},
 		},
+		MCP: canonical.MCPRegistry{Servers: []canonical.MCPServer{
+			{Name: "filepuff", Command: "/bin/filepuff"},
+		}},
 	}
 	fs, err := ad.Render(b)
 	require.NoError(t, err)
@@ -39,6 +42,10 @@ func TestKiloRender(t *testing.T) {
 
 	var parsed map[string]any
 	require.NoError(t, json.Unmarshal(seen[cfgDest].Content, &parsed))
+	assert.Equal(t, "sonnet", parsed["model"])
+	assert.Contains(t, parsed, "mcp")
+	assert.NotContains(t, parsed, "default_model")
+	assert.NotContains(t, parsed, "mcpServers")
 }
 
 func TestKiloImport(t *testing.T) {
