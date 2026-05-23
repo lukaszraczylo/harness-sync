@@ -1,0 +1,147 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 560" width="1200" height="560" role="img" aria-label="harness-sync architecture diagram">
+  <title>harness-sync architecture</title>
+  <desc>Flow diagram: canonical config in a git repository renders through per-harness adapters via a three-way merge into each harness's native config layout.</desc>
+
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#0ea5e9"/>
+    </marker>
+    <marker id="arrowGrey" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b"/>
+    </marker>
+    <style>
+      .box {
+        fill: #f8fafc;
+        stroke: #cbd5e1;
+        stroke-width: 1.5;
+        rx: 8;
+      }
+      .box-accent {
+        fill: #e0f2fe;
+        stroke: #0ea5e9;
+        stroke-width: 2;
+      }
+      .box-state {
+        fill: #fef3c7;
+        stroke: #f59e0b;
+        stroke-width: 1.5;
+      }
+      .label {
+        font-family: ui-sans-serif, system-ui, sans-serif;
+        font-size: 14px;
+        fill: #0f172a;
+      }
+      .label-bold {
+        font-weight: 600;
+      }
+      .mono {
+        font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+        font-size: 12px;
+        fill: #334155;
+      }
+      .caption {
+        font-family: ui-sans-serif, system-ui, sans-serif;
+        font-size: 12px;
+        fill: #64748b;
+      }
+    </style>
+  </defs>
+
+  <!-- Canonical box (left) -->
+  <g>
+    <rect class="box-accent" x="40" y="60" width="280" height="440" rx="8"/>
+    <text class="label label-bold" x="180" y="92" text-anchor="middle">canonical (git repo)</text>
+    <text class="caption"       x="180" y="110" text-anchor="middle">~/.config/harness-sync/</text>
+
+    <g class="mono">
+      <text x="60" y="155">config.yaml</text>
+      <text x="60" y="180">profiles/</text>
+      <text x="80" y="200">home.yaml</text>
+      <text x="80" y="220">work.yaml</text>
+      <text x="60" y="250">instructions/global.md</text>
+      <text x="60" y="280">skills/&lt;name&gt;/SKILL.md</text>
+      <text x="60" y="305">agents/&lt;name&gt;.md</text>
+      <text x="60" y="330">mcp.yaml</text>
+    </g>
+
+    <rect class="box-state" x="60" y="370" width="240" height="105" rx="6"/>
+    <text class="label label-bold" x="180" y="395" text-anchor="middle">state/</text>
+    <text class="caption" x="180" y="415" text-anchor="middle">last-rendered snapshots</text>
+    <text class="caption" x="180" y="435" text-anchor="middle">(git HEAD)</text>
+    <text class="caption" x="180" y="460" text-anchor="middle">used as 3-way merge base</text>
+  </g>
+
+  <!-- Adapter box (middle) -->
+  <g>
+    <rect class="box" x="450" y="180" width="300" height="200" rx="8"/>
+    <text class="label label-bold" x="600" y="210" text-anchor="middle">adapter.Render(bundle)</text>
+    <text class="caption"          x="600" y="228" text-anchor="middle">internal/adapters/&lt;name&gt;/</text>
+
+    <g class="mono">
+      <text x="470" y="265">→ canonical types</text>
+      <text x="470" y="288">→ native schema</text>
+      <text x="470" y="311">→ FileSet (symlink | rendered)</text>
+      <text x="470" y="345">common.BuildProviders()</text>
+      <text x="470" y="362">common.BuildMCPMapStyled()</text>
+    </g>
+  </g>
+
+  <!-- 3-way merge box (top right inflow) -->
+  <g>
+    <rect class="box" x="820" y="60" width="320" height="160" rx="8"/>
+    <text class="label label-bold" x="980" y="90" text-anchor="middle">3-way merge</text>
+    <text class="caption"          x="980" y="108" text-anchor="middle">git merge-file</text>
+
+    <g class="mono">
+      <text x="840" y="140">base   = state/&lt;harness&gt;/&lt;path&gt;</text>
+      <text x="840" y="160">ours   = rendered_new</text>
+      <text x="840" y="180">theirs = target on disk</text>
+      <text x="840" y="205" fill="#dc2626">conflict → write &lt;file&gt;.rej</text>
+    </g>
+  </g>
+
+  <!-- Target harnesses (right side, stacked) -->
+  <g>
+    <rect class="box" x="820" y="260" width="320" height="240" rx="8"/>
+    <text class="label label-bold" x="980" y="290" text-anchor="middle">harness target</text>
+    <text class="caption"          x="980" y="308" text-anchor="middle">filesystem write + symlink</text>
+
+    <g class="mono">
+      <text x="840" y="340">~/.claude/                  (claude-code)</text>
+      <text x="840" y="362">~/.config/crush/            (crush)</text>
+      <text x="840" y="384">~/.config/kilo/             (kilo)</text>
+      <text x="840" y="406">~/.config/opencode/         (opencode)</text>
+      <text x="840" y="428">~/.config/goose/            (goose)</text>
+      <text x="840" y="450">~/.config/cagent/           (cagent)</text>
+      <text x="840" y="472">~/.config/zed/              (zed)</text>
+    </g>
+  </g>
+
+  <!-- Arrows -->
+  <!-- canonical -> adapter -->
+  <path d="M 320 280 L 450 280" fill="none" stroke="#0ea5e9" stroke-width="2" marker-end="url(#arrow)"/>
+  <!-- adapter -> 3-way merge -->
+  <path d="M 750 230 L 820 160" fill="none" stroke="#0ea5e9" stroke-width="2" marker-end="url(#arrow)"/>
+  <!-- state -> 3-way merge -->
+  <path d="M 300 410 C 600 410, 820 200, 820 180" fill="none" stroke="#64748b" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#arrowGrey)"/>
+  <!-- 3-way merge -> target -->
+  <path d="M 980 220 L 980 260" fill="none" stroke="#0ea5e9" stroke-width="2" marker-end="url(#arrow)"/>
+  <!-- target -> state (snapshot write-back) -->
+  <path d="M 820 380 C 600 380, 300 380, 300 360" fill="none" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="3 3" marker-end="url(#arrowGrey)"/>
+
+  <!-- Legend / labels along arrows -->
+  <g class="caption">
+    <text x="385" y="270" text-anchor="middle">load</text>
+    <text x="780" y="190">render</text>
+    <text x="985" y="245" text-anchor="middle">write</text>
+    <text x="560" y="375">snapshot back to state/</text>
+  </g>
+
+  <!-- Bottom strip: apply pipeline -->
+  <g>
+    <rect class="box" x="40" y="525" width="1100" height="0" rx="8" opacity="0"/>
+    <text class="caption" x="600" y="540" text-anchor="middle">
+      apply: for each detected adapter → Render → 3-way merge against state → write target → commit new state in canonical repo
+    </text>
+  </g>
+</svg>
