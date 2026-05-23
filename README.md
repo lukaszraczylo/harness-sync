@@ -115,7 +115,7 @@ harness-sync goes out of its way to avoid.
 
 | Harness | Native config | MCP key | Model selector | Instructions | Symlinked |
 |---|---|---|---|---|---|
-| **claude-code** | `~/.claude/settings.json` (merged) | `mcpServers` | `env.ANTHROPIC_DEFAULT_MODEL` | `~/.claude/CLAUDE.md` | `skills/`, `agents/` |
+| **claude-code** | `~/.claude.json` (merged, primary) + `~/.claude/mcp_servers.json` | `mcpServers` (`type: stdio`/`http`) | `env.ANTHROPIC_DEFAULT_MODEL` | `~/.claude/CLAUDE.md` | `skills/`, `agents/` |
 | **crush** | `~/.config/crush/crush.json` (merged) | `mcp` (type: stdio\|http\|sse) | `default_model` | auto-read `AGENTS.md` | `skills/` |
 | **kilo** | `~/.config/kilo/kilo.json` (merged) | `mcp` (type: local\|remote) | `model` + `small_model` | `instructions` array | `agent/` |
 | **opencode** | `~/.config/opencode/opencode.jsonc` (merged) | `mcp` (type: local\|remote) | `model` | `AGENTS.md` | — |
@@ -136,23 +136,34 @@ implementing `adapter.Adapter`, register one line in `cmd/harness-sync/main.go`.
 ## Commands
 
 ```text
-harness-sync detect                  list adapters + detection status
-harness-sync show [harness...]       print files each adapter manages
-                  --all              include not-detected harnesses
-harness-sync init                    import from detected harnesses
-                  --from a,b         pick adapters, skip prompt
-                  --no-prompt        take all detected
-harness-sync apply [harness...]      render + write
-                  --dry-run          show plan, write nothing
-                  --force            overwrite without 3-way merge
-harness-sync diff [harness...]       apply --dry-run shorthand
-harness-sync profile list            list canonical profiles
-harness-sync profile use <name>      switch active profile + re-apply
-harness-sync rollback [n]            git revert last N apply commits
-harness-sync adapter list            print registered adapters
+harness-sync detect                       list adapters + detection status
+harness-sync show [harness...]            print files each adapter manages
+                  --all                   include not-detected harnesses
+harness-sync init                         import from detected harnesses
+                  --from a,b              pick adapters, skip prompt
+                  --no-prompt             take all detected
+                  --force                 allow re-init over existing canonical
+harness-sync apply [harness...]           render + write
+                  --dry-run               show plan, write nothing
+                  --force                 overwrite without 3-way merge
+                  --yes                   skip first-run confirmation prompt
+                  --allow-incomplete      apply with an unconfigured gateway
+harness-sync diff [harness...]            apply --dry-run shorthand
+harness-sync profile list                 list canonical profiles
+harness-sync profile use <name>           switch active profile
+                  --apply                 reapply automatically after switching
+harness-sync rollback [n]                 git revert last N apply commits
+harness-sync adapter list                 print registered adapters
 ```
 
 Every command accepts `--root <path>` to point at a non-default canonical tree.
+
+### Production safety
+
+- **First-run prompt.** The first `apply` against detected harnesses asks for confirmation before moving existing files to backups and replacing them with symlinks. Use `--yes` (or run non-interactively in CI) to skip.
+- **Profile completeness.** `apply` refuses to proceed when the active profile's `gateway.url` or `gateway.default_model` is empty. The placeholder profile written by `init` is left blank on purpose — edit `profiles/imported.yaml` before applying. `--allow-incomplete` lifts the guard for tests.
+- **Init guard.** `init` refuses to overwrite an already-initialised canonical tree. Use `--force` to merge new harness imports into existing skills/agents/MCP without clobbering edits.
+- **Env-var substitution.** `${VAR}` references in profiles and the MCP registry are resolved against the process environment at apply time. A missing variable aborts the run with an explicit error — secrets never silently fall back to empty.
 
 ---
 
