@@ -31,32 +31,7 @@ func BuildMCPMapStyled(reg *canonical.MCPRegistry, style MCPStyle) map[string]an
 func mcpEntry(s canonical.MCPServer, style MCPStyle) map[string]any {
 	e := map[string]any{}
 	switch style {
-	case MCPClaudeStyle:
-		// Claude Code's actual entry shape uses "type" (not "transport").
-		// Default to stdio when no URL is set.
-		t := s.Transport
-		if s.URL != "" {
-			if t == "" {
-				t = "http"
-			}
-			e["type"] = t
-			e["url"] = s.URL
-		} else {
-			if t == "" {
-				t = "stdio"
-			}
-			e["type"] = t
-			if s.Command != "" {
-				e["command"] = s.Command
-			}
-			if len(s.Args) > 0 {
-				e["args"] = s.Args
-			}
-			if len(s.Env) > 0 {
-				e["env"] = s.Env
-			}
-		}
-	case MCPCrushStyle:
+	case MCPClaudeStyle, MCPCrushStyle:
 		if s.URL != "" {
 			t := s.Transport
 			if t == "" {
@@ -65,7 +40,12 @@ func mcpEntry(s canonical.MCPServer, style MCPStyle) map[string]any {
 			e["type"] = t
 			e["url"] = s.URL
 		} else {
-			e["type"] = "stdio"
+			// Claude honours Transport field; Crush always uses "stdio".
+			t := "stdio"
+			if style == MCPClaudeStyle && s.Transport != "" {
+				t = s.Transport
+			}
+			e["type"] = t
 			if s.Command != "" {
 				e["command"] = s.Command
 			}

@@ -32,19 +32,11 @@ func WithHome(h string) Option { return func(a *Adapter) { a.home = h } }
 
 // New returns a new Adapter with the given options applied.
 func New(opts ...Option) *Adapter {
-	a := &Adapter{home: defaultHome()}
+	a := &Adapter{home: common.DefaultHome()}
 	for _, o := range opts {
 		o(a)
 	}
 	return a
-}
-
-func defaultHome() string {
-	h, err := os.UserHomeDir()
-	if err != nil {
-		return ""
-	}
-	return h
 }
 
 // Name returns the harness identifier.
@@ -152,8 +144,8 @@ func buildExtensions(servers []canonical.MCPServer) map[string]any {
 // splitProviderModel splits "provider/model" into its parts.
 // If no slash, provider is "anthropic" and the whole string is the model.
 func splitProviderModel(s string) (string, string) {
-	if idx := strings.IndexByte(s, '/'); idx >= 0 {
-		return s[:idx], s[idx+1:]
+	if p, m, ok := strings.Cut(s, "/"); ok {
+		return p, m
 	}
 	return "anthropic", s
 }

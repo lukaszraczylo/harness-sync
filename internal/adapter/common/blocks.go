@@ -11,10 +11,6 @@ import (
 
 const fallbackGatewayProviderID = "harness-sync-gateway"
 
-// GatewayProviderID is the canonical provider key used across all adapters.
-// Deprecated: prefer GatewayProviderKey(gatewayURL) for a stable URL-derived key.
-const GatewayProviderID = fallbackGatewayProviderID
-
 // GatewayProviderKey returns a stable provider key derived from the gateway URL.
 // Format: "hs-<hostname>" with dots and special chars normalised to dashes.
 // Falls back to "harness-sync-gateway" when the URL is empty or unparseable.
@@ -32,52 +28,6 @@ func GatewayProviderKey(gatewayURL string) string {
 	// Replace dots, underscores, and colons (port separators) with dashes.
 	r := strings.NewReplacer(".", "-", "_", "-", ":", "-")
 	return "hs-" + r.Replace(host)
-}
-
-// ProviderEntry is a generic provider record. Adapters may massage further.
-type ProviderEntry = map[string]any
-
-// BuildProviders returns the canonical-to-generic provider list: gateway first
-// (if configured), then any upstreams. Each entry has id, name, base_url,
-// api_key, and (for the gateway) a models list.
-func BuildProviders(p *canonical.Profile) []ProviderEntry {
-	out := make([]ProviderEntry, 0, len(p.Upstreams)+1)
-	if p.Gateway.URL != "" {
-		key := GatewayProviderKey(p.Gateway.URL)
-		gw := ProviderEntry{
-			"id":       key,
-			"name":     "harness-sync gateway",
-			"base_url": p.Gateway.URL,
-			"api_key":  p.Gateway.Token,
-		}
-		if models := buildModels(p.Models); len(models) > 0 {
-			gw["models"] = models
-		}
-		out = append(out, gw)
-	}
-	for _, up := range p.Upstreams {
-		e := ProviderEntry{"id": up.Name, "name": up.Name}
-		if up.BaseURL != "" {
-			e["base_url"] = up.BaseURL
-		}
-		if up.APIKey != "" {
-			e["api_key"] = up.APIKey
-		}
-		out = append(out, e)
-	}
-	return out
-}
-
-func buildModels(models []canonical.Model) []map[string]any {
-	out := make([]map[string]any, 0, len(models))
-	for _, m := range models {
-		e := map[string]any{"id": m.ID}
-		if m.Alias != "" {
-			e["alias"] = m.Alias
-		}
-		out = append(out, e)
-	}
-	return out
 }
 
 // crushModel builds a 10-field model entry required by the crush schema.
@@ -207,40 +157,6 @@ func ProvidersAsCagentMap(p *canonical.Profile) map[string]any {
 		"provider": "openai",
 	}
 	return out
-}
-
-// ZedLanguageModels returns the language_models.openai block for Zed when a
-// gateway URL is configured.
-func ZedLanguageModels(p *canonical.Profile) map[string]any {
-	if p.Gateway.URL == "" {
-		return map[string]any{}
-	}
-	models := make([]map[string]any, 0)
-	for _, m := range p.Models {
-		models = append(models, map[string]any{
-			"name": m.ID,
-			"display_name": func() string {
-				if m.Alias != "" {
-					return m.Alias
-				}
-				return m.ID
-			}(),
-			"max_tokens": 8192,
-		})
-	}
-	if len(models) == 0 && p.Gateway.DefaultModel != "" {
-		models = append(models, map[string]any{
-			"name":         p.Gateway.DefaultModel,
-			"display_name": p.Gateway.DefaultModel,
-			"max_tokens":   8192,
-		})
-	}
-	return map[string]any{
-		"openai": map[string]any{
-			"api_url":          p.Gateway.URL,
-			"available_models": models,
-		},
-	}
 }
 
 // GooseCustomProviderFile returns the JSON body and provider ID for the goose

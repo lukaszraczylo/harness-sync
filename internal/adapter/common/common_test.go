@@ -9,32 +9,6 @@ import (
 	"github.com/lukaszraczylo/harness-sync/internal/canonical"
 )
 
-func TestBuildProvidersGatewayFirst(t *testing.T) {
-	p := &canonical.Profile{
-		Gateway: canonical.Gateway{URL: "https://gw", Token: "t", DefaultModel: "x"},
-		Models:  []canonical.Model{{ID: "m1", Alias: "a1"}},
-		Upstreams: []canonical.Upstream{
-			{Name: "anthropic", APIKey: "k", BaseURL: "https://api.anthropic.com"},
-		},
-	}
-	out := BuildProviders(p)
-	require.Len(t, out, 2)
-	assert.Equal(t, "hs-gw", out[0]["id"])
-	assert.Equal(t, "anthropic", out[1]["id"])
-	assert.NotNil(t, out[0]["models"])
-}
-
-func TestBuildProvidersNoGateway(t *testing.T) {
-	p := &canonical.Profile{
-		Upstreams: []canonical.Upstream{
-			{Name: "anthropic", APIKey: "k"},
-		},
-	}
-	out := BuildProviders(p)
-	require.Len(t, out, 1)
-	assert.Equal(t, "anthropic", out[0]["id"])
-}
-
 func TestBuildMCPMap(t *testing.T) {
 	reg := &canonical.MCPRegistry{Servers: []canonical.MCPServer{
 		{Name: "filepuff", Command: "/bin/x", Transport: "stdio"},

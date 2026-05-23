@@ -25,19 +25,11 @@ func WithHome(h string) Option { return func(a *Adapter) { a.home = h } }
 
 // New returns a new Adapter with the given options applied.
 func New(opts ...Option) *Adapter {
-	a := &Adapter{home: defaultHome()}
+	a := &Adapter{home: common.DefaultHome()}
 	for _, o := range opts {
 		o(a)
 	}
 	return a
-}
-
-func defaultHome() string {
-	h, err := os.UserHomeDir()
-	if err != nil {
-		return ""
-	}
-	return h
 }
 
 // Name returns the harness identifier.

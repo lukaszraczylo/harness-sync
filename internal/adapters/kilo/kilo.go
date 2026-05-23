@@ -27,19 +27,11 @@ func WithHome(h string) Option { return func(a *Adapter) { a.home = h } }
 
 // New returns a new Adapter with the given options applied.
 func New(opts ...Option) *Adapter {
-	a := &Adapter{home: defaultHome()}
+	a := &Adapter{home: common.DefaultHome()}
 	for _, o := range opts {
 		o(a)
 	}
 	return a
-}
-
-func defaultHome() string {
-	h, err := os.UserHomeDir()
-	if err != nil {
-		return ""
-	}
-	return h
 }
 
 // Name returns the harness identifier.
@@ -110,55 +102,55 @@ func (a *Adapter) Render(b *canonical.Bundle) (*adapter.FileSet, error) {
 
 	// Also merge into opencode.jsonc when present — kilo reads it as its
 	// primary config. Delete the enabled_providers filter so our provider is
-	// visible alongside user-defined providers. Deep-merge the provider map
-	// so existing providers (e.g. "llmgw") are preserved.
+	// visible alongside user-defined providers.
 	ocPath := filepath.Join(base, "opencode.jsonc")
-	if ocRaw, readErr := os.ReadFile(ocPath); readErr == nil {
-		// Parse existing content (supports JSONC comments internally).
-		var ocBase map[string]any
-		clean := common.StripJSONComments(string(ocRaw))
-		_ = json.Unmarshal([]byte(clean), &ocBase)
-		if ocBase == nil {
-			ocBase = map[string]any{}
-		}
-
-		ocOverlay := map[string]any{
-			"enabled_providers": nil, // delete filter
-		}
-
-		// Deep-merge provider: add our entries INTO the existing provider map,
-		// then absorb any duplicate providers that share the same gateway URL.
-		if newProv, ok := overlay["provider"].(map[string]any); ok && len(newProv) > 0 {
-			existingProv, _ := ocBase["provider"].(map[string]any)
-			if existingProv == nil {
-				existingProv = map[string]any{}
-			}
-			maps.Copy(existingProv, newProv)
-			// Absorb providers at the same URL into harness-sync-gateway,
-			// preserving user-crafted display names and custom limits.
-			merged := common.AbsorbDuplicateProviders(existingProv, common.GatewayProviderKey(b.Profile.Gateway.URL), b.Profile.Gateway.URL)
-			ocOverlay["provider"] = merged
-		}
-		// Copy model/small_model/mcp from the kilo.json overlay.
-		for _, k := range []string{"model", "small_model", "mcp"} {
-			if v, ok := overlay[k]; ok {
-				ocOverlay[k] = v
-			}
-		}
-
-		ocMerged, mergeErr := common.MergeJSONKeys([]byte(clean), ocOverlay)
-		if mergeErr != nil {
-			return nil, mergeErr
-		}
+	if ocContent, mergeErr := mergeOpenCodeJSONC(ocPath, overlay, b.Profile.Gateway.URL); mergeErr != nil {
+		return nil, mergeErr
+	} else if ocContent != nil {
 		fs.Add(adapter.File{
 			Dest:    ocPath,
 			Kind:    adapter.RenderedFile,
-			Content: ocMerged,
+			Content: ocContent,
 			NoMerge: true,
 		})
 	}
 
 	return fs, nil
+}
+
+// mergeOpenCodeJSONC deep-merges our overlay into the existing opencode.jsonc
+// file, deleting the enabled_providers filter and deduplicating gateway providers.
+// Returns nil content (no error) when the file does not exist.
+func mergeOpenCodeJSONC(path string, overlay map[string]any, gatewayURL string) ([]byte, error) {
+	ocRaw, err := os.ReadFile(path)
+	if err != nil {
+		return nil, nil //nolint:nilerr // file absent is not an error
+	}
+
+	var ocBase map[string]any
+	clean := common.StripJSONComments(string(ocRaw))
+	_ = json.Unmarshal([]byte(clean), &ocBase)
+	if ocBase == nil {
+		ocBase = map[string]any{}
+	}
+
+	ocOverlay := map[string]any{"enabled_providers": nil}
+
+	if newProv, ok := overlay["provider"].(map[string]any); ok && len(newProv) > 0 {
+		existingProv, _ := ocBase["provider"].(map[string]any)
+		if existingProv == nil {
+			existingProv = map[string]any{}
+		}
+		maps.Copy(existingProv, newProv)
+		ocOverlay["provider"] = common.AbsorbDuplicateProviders(existingProv, common.GatewayProviderKey(gatewayURL), gatewayURL)
+	}
+	for _, k := range []string{"model", "small_model", "mcp"} {
+		if v, ok := overlay[k]; ok {
+			ocOverlay[k] = v
+		}
+	}
+
+	return common.MergeJSONKeys([]byte(clean), ocOverlay)
 }
 
 // Import reads kilo config from home and returns a canonical ImportResult.
