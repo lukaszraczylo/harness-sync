@@ -55,8 +55,8 @@ func TestCagentRenderProducesExpectedTargets(t *testing.T) {
 	providers := parsed["providers"].(map[string]any)
 	gwProv := providers["harness-sync-gateway"].(map[string]any)
 	assert.Equal(t, "https://gw", gwProv["base_url"])
-	assert.Equal(t, "HARNESS_SYNC_GATEWAY_TOKEN", gwProv["token_key"])
 	assert.Equal(t, "openai", gwProv["provider"])
+	assert.NotContains(t, gwProv, "token_key")
 
 	// models map.
 	models := parsed["models"].(map[string]any)
@@ -96,8 +96,9 @@ func TestCagentRenderProvidersAndModelsMaps(t *testing.T) {
 	gw, ok := providers["harness-sync-gateway"].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, "https://gw", gw["base_url"])
-	assert.Equal(t, "HARNESS_SYNC_GATEWAY_TOKEN", gw["token_key"])
+	assert.Equal(t, "tok", gw["api_key"])
 	assert.Equal(t, "openai", gw["provider"])
+	assert.NotContains(t, gw, "token_key")
 
 	// agents.default.model uses inline shorthand.
 	agents := parsed["agents"].(map[string]any)

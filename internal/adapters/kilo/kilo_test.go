@@ -128,6 +128,48 @@ func TestKiloRenderEmitsModelString(t *testing.T) {
 	assert.Equal(t, "https://gw", opts["baseURL"])
 }
 
+func TestKiloRenderMergesOpenCodeJSONC(t *testing.T) {
+	home := t.TempDir()
+	base := filepath.Join(home, ".config", "kilo")
+	require.NoError(t, os.MkdirAll(base, 0o750))
+
+	// Existing opencode.jsonc with a filter and a different provider.
+	existing := `{
+		"enabled_providers": ["llmgw"],
+		"provider": {
+			"llmgw": {"npm": "@ai-sdk/openai-compatible", "options": {"baseURL": "https://old"}}
+		},
+		"model": "llmgw/old-model"
+	}`
+	require.NoError(t, os.WriteFile(filepath.Join(base, "opencode.jsonc"), []byte(existing), 0o600))
+
+	ad := New(WithHome(home))
+	b := &canonical.Bundle{
+		Profile: canonical.Profile{
+			Gateway: canonical.Gateway{URL: "https://gw", Token: "dummy", DefaultModel: "sonnet"},
+			Models:  []canonical.Model{{ID: "claude-sonnet-4-6", Alias: "sonnet"}},
+		},
+	}
+	fs, err := ad.Render(b)
+	require.NoError(t, err)
+	seen := map[string]adapter.File{}
+	fs.ForEach(func(f adapter.File) { seen[f.Dest] = f })
+
+	ocDest := filepath.Join(base, "opencode.jsonc")
+	require.Contains(t, seen, ocDest)
+
+	var parsed map[string]any
+	require.NoError(t, json.Unmarshal(seen[ocDest].Content, &parsed))
+	// enabled_providers deleted so our provider is visible.
+	assert.NotContains(t, parsed, "enabled_providers")
+	// llmgw preserved, harness-sync-gateway added.
+	provider := parsed["provider"].(map[string]any)
+	assert.Contains(t, provider, "llmgw")
+	assert.Contains(t, provider, "harness-sync-gateway")
+	// model updated.
+	assert.Equal(t, "harness-sync-gateway/sonnet", parsed["model"])
+}
+
 func TestKiloImport(t *testing.T) {
 	home := t.TempDir()
 	base := filepath.Join(home, ".config", "kilo")

@@ -180,9 +180,9 @@ func ProvidersAsCagentMap(p *canonical.Profile) map[string]any {
 		return out
 	}
 	out[gatewayProviderID] = map[string]any{
-		"base_url":  p.Gateway.URL,
-		"token_key": "HARNESS_SYNC_GATEWAY_TOKEN",
-		"provider":  "openai",
+		"base_url": p.Gateway.URL,
+		"api_key":  p.Gateway.Token,
+		"provider": "openai",
 	}
 	return out
 }
@@ -261,16 +261,16 @@ func GooseCustomProviderFile(p *canonical.Profile) ([]byte, string) {
 		}
 	}
 
-	chatURL := strings.TrimRight(p.Gateway.URL, "/") + "/v1/chat/completions"
+	// Append only /chat/completions — the profile URL already contains /v1.
+	chatURL := strings.TrimRight(p.Gateway.URL, "/") + "/chat/completions"
 
 	entry := map[string]any{
-		"name":          providerName,
-		"engine":        "openai",
-		"display_name":  displayName,
-		"base_url":      chatURL,
-		"models":        models,
-		"requires_auth": true,
-		"api_key_env":   "CUSTOM_HARNESS_SYNC_GATEWAY_API_KEY",
+		"name":         providerName,
+		"engine":       "openai",
+		"display_name": displayName,
+		"base_url":     chatURL,
+		"models":       models,
+		"api_key":      p.Gateway.Token,
 	}
 	body, err := json.MarshalIndent(entry, "", "  ")
 	if err != nil {

@@ -1,0 +1,653 @@
+<!doctype html>
+<html lang="en" class="scroll-smooth">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>harness-sync — One Config, Every Harness</title>
+        <meta
+            name="description"
+            content="One canonical source of truth for skills, agents, MCP servers, LLM endpoints, and global instructions across every LLM harness on your machine."
+        />
+        <script src="https://cdn.tailwindcss.com"></script>
+        <script>
+            tailwind.config = {
+                darkMode: 'class'
+            }
+        </script>
+        <link
+            rel="stylesheet"
+            href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
+        />
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+            rel="stylesheet"
+        />
+        <style>
+            body { font-family: "Inter", sans-serif; }
+            code, pre { font-family: "JetBrains Mono", monospace; }
+            .theme-transition {
+                transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+            }
+            @keyframes fadeInUp {
+                from { opacity: 0; transform: translateY(20px); }
+                to { opacity: 1; transform: translateY(0); }
+            }
+            @keyframes float {
+                0%, 100% { transform: translateY(0px); }
+                50% { transform: translateY(-10px); }
+            }
+            .animate-fade-in-up { animation: fadeInUp 0.6s ease-out; }
+            .animate-float { animation: float 3s ease-in-out infinite; }
+            .glass {
+                background: rgba(255, 255, 255, 0.7);
+                backdrop-filter: blur(10px);
+                -webkit-backdrop-filter: blur(10px);
+                border: 1px solid rgba(255, 255, 255, 0.2);
+            }
+            .dark .glass {
+                background: rgba(17, 24, 39, 0.7);
+                border: 1px solid rgba(255, 255, 255, 0.1);
+            }
+            .gradient-text {
+                background: linear-gradient(135deg, #10b981 0%, #06b6d4 50%, #8b5cf6 100%);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                background-clip: text;
+            }
+            .dark .gradient-text {
+                background: linear-gradient(135deg, #34d399 0%, #22d3ee 50%, #a78bfa 100%);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                background-clip: text;
+            }
+            .shadow-modern { box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.1); }
+            .dark .shadow-modern { box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.4); }
+            html { scroll-behavior: smooth; }
+        </style>
+        <script>
+            if (localStorage.theme === "dark" || (!("theme" in localStorage) && window.matchMedia("(prefers-color-scheme: dark)").matches)) {
+                document.documentElement.classList.add("dark");
+            } else {
+                document.documentElement.classList.remove("dark");
+            }
+        </script>
+    </head>
+    <body class="bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 theme-transition">
+        <nav class="fixed w-full glass shadow-modern z-50 theme-transition">
+            <div class="max-w-6xl mx-auto px-4 sm:px-6">
+                <div class="flex justify-between h-16 items-center">
+                    <a href="#" class="flex items-center hover:opacity-80 transition-opacity duration-300 gap-2">
+                        <i class="fas fa-sync-alt text-2xl text-emerald-500"></i>
+                        <span class="text-xl font-bold gradient-text">harness-sync</span>
+                    </a>
+                    <div class="hidden md:flex space-x-6">
+                        <a href="#problem" class="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 font-medium">Problem</a>
+                        <a href="#features" class="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 font-medium">Features</a>
+                        <a href="#harnesses" class="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 font-medium">Harnesses</a>
+                        <a href="#installation" class="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 font-medium">Install</a>
+                        <a href="#usage" class="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 font-medium">Usage</a>
+                        <a href="#architecture" class="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 font-medium">Architecture</a>
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <button id="theme-toggle" class="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 p-2 min-w-[44px] min-h-[44px] flex items-center justify-center" aria-label="Toggle theme">
+                            <i class="fas fa-moon dark:hidden text-xl"></i>
+                            <i class="fas fa-sun hidden dark:inline text-xl"></i>
+                        </button>
+                        <a href="https://github.com/lukaszraczylo/harness-sync" target="_blank" class="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 p-2 min-w-[44px] min-h-[44px] flex items-center justify-center" aria-label="View on GitHub">
+                            <i class="fab fa-github text-xl"></i>
+                        </a>
+                        <button id="mobile-menu-toggle" class="md:hidden text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 p-2 min-w-[44px] min-h-[44px] flex items-center justify-center" aria-label="Toggle menu">
+                            <i class="fas fa-bars text-xl" id="menu-open-icon"></i>
+                            <i class="fas fa-times text-xl hidden" id="menu-close-icon"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div id="mobile-menu" class="hidden md:hidden border-t border-gray-200 dark:border-gray-700">
+                <div class="px-4 py-3 space-y-1 bg-white dark:bg-gray-800">
+                    <a href="#problem" class="block px-3 py-3 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700 rounded font-medium">Problem</a>
+                    <a href="#features" class="block px-3 py-3 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700 rounded font-medium">Features</a>
+                    <a href="#harnesses" class="block px-3 py-3 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700 rounded font-medium">Harnesses</a>
+                    <a href="#installation" class="block px-3 py-3 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700 rounded font-medium">Install</a>
+                    <a href="#usage" class="block px-3 py-3 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700 rounded font-medium">Usage</a>
+                    <a href="#architecture" class="block px-3 py-3 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700 rounded font-medium">Architecture</a>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Hero -->
+        <section class="relative pt-24 sm:pt-32 pb-12 sm:pb-20 overflow-hidden">
+            <div class="absolute inset-0 bg-gradient-to-br from-emerald-50 via-cyan-50 to-violet-50 dark:from-gray-900 dark:via-emerald-900/20 dark:to-cyan-900/20 theme-transition"></div>
+            <div class="absolute top-0 -left-4 w-72 h-72 bg-emerald-300 dark:bg-emerald-500 rounded-full mix-blend-multiply dark:mix-blend-soft-light filter blur-xl opacity-20 animate-float"></div>
+            <div class="absolute top-0 -right-4 w-72 h-72 bg-cyan-300 dark:bg-cyan-500 rounded-full mix-blend-multiply dark:mix-blend-soft-light filter blur-xl opacity-20 animate-float" style="animation-delay: 1s;"></div>
+            <div class="absolute -bottom-8 left-20 w-72 h-72 bg-violet-300 dark:bg-violet-500 rounded-full mix-blend-multiply dark:mix-blend-soft-light filter blur-xl opacity-20 animate-float" style="animation-delay: 2s;"></div>
+
+            <div class="relative max-w-6xl mx-auto px-4 sm:px-6">
+                <div class="text-center">
+                    <div class="mb-6 sm:mb-8 flex justify-center animate-fade-in-up">
+                        <div class="w-24 h-24 sm:w-32 sm:h-32 rounded-2xl bg-gradient-to-br from-emerald-500 via-cyan-500 to-violet-500 flex items-center justify-center shadow-xl animate-float">
+                            <i class="fas fa-sync-alt text-white text-4xl sm:text-5xl"></i>
+                        </div>
+                    </div>
+                    <h1 class="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-gray-900 dark:text-gray-100 mb-4 sm:mb-6 leading-tight animate-fade-in-up" style="animation-delay: 0.1s;">
+                        One Config,<br /><span class="gradient-text">Every Harness</span>
+                    </h1>
+                    <p class="text-base sm:text-lg md:text-xl text-gray-600 dark:text-gray-300 mb-8 sm:mb-10 max-w-2xl mx-auto leading-relaxed px-4 animate-fade-in-up" style="animation-delay: 0.2s;">
+                        One canonical source of truth for skills, agents, MCP servers, LLM endpoints, and global instructions across every LLM harness on your machine.
+                    </p>
+                    <div class="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center mb-8 sm:mb-12 px-4 animate-fade-in-up" style="animation-delay: 0.3s;">
+                        <a href="#installation" class="group relative bg-gradient-to-r from-emerald-600 to-cyan-600 hover:from-emerald-700 hover:to-cyan-700 text-white px-8 py-3 rounded-lg font-medium transition-all duration-300 min-h-[48px] flex items-center justify-center shadow-lg hover:shadow-xl hover:scale-105">
+                            <span class="relative z-10">Get Started</span>
+                        </a>
+                        <a href="https://github.com/lukaszraczylo/harness-sync" class="group glass hover:shadow-lg text-gray-900 dark:text-gray-100 px-8 py-3 rounded-lg font-medium transition-all duration-300 min-h-[48px] flex items-center justify-center hover:scale-105">
+                            <i class="fab fa-github mr-2"></i>View on GitHub
+                        </a>
+                    </div>
+                    <div class="flex flex-wrap justify-center gap-2 sm:gap-4 text-sm px-4 animate-fade-in-up" style="animation-delay: 0.4s;">
+                        <img src="https://img.shields.io/github/v/release/lukaszraczylo/harness-sync" alt="Version" class="h-5" />
+                        <img src="https://img.shields.io/github/license/lukaszraczylo/harness-sync" alt="License" class="h-5" />
+                        <img src="https://goreportcard.com/badge/github.com/lukaszraczylo/harness-sync" alt="Go Report" class="h-5" />
+                    </div>
+                </div>
+            </div>
+        </section>
+        <!-- Problem Section -->
+        <section id="problem" class="py-12 sm:py-16 md:py-20 bg-gray-50 dark:bg-gray-800 theme-transition">
+            <div class="max-w-6xl mx-auto px-4 sm:px-6">
+                <div class="text-center mb-8 sm:mb-12">
+                    <h2 class="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900 dark:text-gray-100 mb-3 sm:mb-4">The Problem</h2>
+                    <p class="text-base sm:text-lg text-gray-600 dark:text-gray-300 px-4">Seven harnesses. Seven copies of the same config. They drift.</p>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="glass p-6 rounded-xl">
+                        <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-4 flex items-center">
+                            <i class="fas fa-times-circle text-red-500 mr-2"></i>Without harness-sync
+                        </h3>
+                        <div class="space-y-3 text-sm text-gray-700 dark:text-gray-300">
+                            <div class="flex items-start gap-2"><i class="fas fa-copy text-red-400 mt-1"></i><span>Same skill markdown, duplicated seven ways</span></div>
+                            <div class="flex items-start gap-2"><i class="fas fa-copy text-red-400 mt-1"></i><span>Same agent definitions, rewritten per harness</span></div>
+                            <div class="flex items-start gap-2"><i class="fas fa-copy text-red-400 mt-1"></i><span>Same MCP registry, seven different key names (<code class="text-xs">mcpServers</code>, <code class="text-xs">mcp</code>, <code class="text-xs">context_servers</code>...)</span></div>
+                            <div class="flex items-start gap-2"><i class="fas fa-copy text-red-400 mt-1"></i><span>Same gateway URL, hand-copied into seven config files</span></div>
+                            <div class="flex items-start gap-2"><i class="fas fa-exclamation-triangle text-red-400 mt-1"></i><span>Edit once. Forget the others. Things break.</span></div>
+                        </div>
+                    </div>
+                    <div class="glass p-6 rounded-xl">
+                        <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-4 flex items-center">
+                            <i class="fas fa-check-circle text-emerald-500 mr-2"></i>With harness-sync
+                        </h3>
+                        <div class="space-y-3 text-sm text-gray-700 dark:text-gray-300">
+                            <div class="flex items-start gap-2"><i class="fas fa-code-branch text-emerald-400 mt-1"></i><span>One canonical tree under git version control</span></div>
+                            <div class="flex items-start gap-2"><i class="fas fa-cogs text-emerald-400 mt-1"></i><span>Per-harness adapters render native config formats</span></div>
+                            <div class="flex items-start gap-2"><i class="fas fa-random text-emerald-400 mt-1"></i><span>3-way merge via git for conflict resolution</span></div>
+                            <div class="flex items-start gap-2"><i class="fas fa-user-shield text-emerald-400 mt-1"></i><span>Secrets via <code class="text-xs">${VAR}</code> env-var substitution, never stored</span></div>
+                            <div class="flex items-start gap-2"><i class="fas fa-undo text-emerald-400 mt-1"></i><span>Git rollback on every apply</span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Features Section -->
+        <section id="features" class="py-12 sm:py-16 md:py-20 bg-white dark:bg-gray-900 theme-transition">
+            <div class="max-w-6xl mx-auto px-4 sm:px-6">
+                <div class="text-center mb-8 sm:mb-12">
+                    <h2 class="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900 dark:text-gray-100 mb-3 sm:mb-4">Features</h2>
+                    <p class="text-base sm:text-lg text-gray-600 dark:text-gray-300 px-4">Everything you need to manage LLM harness config at scale</p>
+                </div>
+                <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div class="glass p-5 rounded-xl group hover:shadow-lg transition-all duration-300">
+                        <div class="flex items-start gap-4">
+                            <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform duration-300">
+                                <i class="fas fa-code-branch text-white"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-1">Canonical Tree</h3>
+                                <p class="text-sm text-gray-600 dark:text-gray-400">Profiles, skills, agents, MCP servers, and instructions — one git-managed directory</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="glass p-5 rounded-xl group hover:shadow-lg transition-all duration-300">
+                        <div class="flex items-start gap-4">
+                            <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-cyan-500 to-cyan-600 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform duration-300">
+                                <i class="fas fa-exchange-alt text-white"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-1">Native Adapters</h3>
+                                <p class="text-sm text-gray-600 dark:text-gray-400">Each harness gets its correct native format — right keys, right types, right paths</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="glass p-5 rounded-xl group hover:shadow-lg transition-all duration-300">
+                        <div class="flex items-start gap-4">
+                            <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-violet-500 to-violet-600 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform duration-300">
+                                <i class="fas fa-random text-white"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-1">3-Way Merge</h3>
+                                <p class="text-sm text-gray-600 dark:text-gray-400">Git merge-file semantics — disjoint changes merge cleanly, conflicts produce .rej files</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="glass p-5 rounded-xl group hover:shadow-lg transition-all duration-300">
+                        <div class="flex items-start gap-4">
+                            <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform duration-300">
+                                <i class="fas fa-layer-group text-white"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-1">Profiles</h3>
+                                <p class="text-sm text-gray-600 dark:text-gray-400">Bundle gateway URL, model allowlist, and upstream keys — switch with one command</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="glass p-5 rounded-xl group hover:shadow-lg transition-all duration-300">
+                        <div class="flex items-start gap-4">
+                            <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-rose-500 to-rose-600 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform duration-300">
+                                <i class="fas fa-user-shield text-white"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-1">Secret Safety</h3>
+                                <p class="text-sm text-gray-600 dark:text-gray-400">Env-var substitution at render time — secrets never stored in canonical tree</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="glass p-5 rounded-xl group hover:shadow-lg transition-all duration-300">
+                        <div class="flex items-start gap-4">
+                            <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform duration-300">
+                                <i class="fas fa-search text-white"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-1">Auto-Detection</h3>
+                                <p class="text-sm text-gray-600 dark:text-gray-400">Detects which harnesses are installed and only touches what's relevant</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="glass p-5 rounded-xl group hover:shadow-lg transition-all duration-300">
+                        <div class="flex items-start gap-4">
+                            <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-teal-500 to-teal-600 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform duration-300">
+                                <i class="fas fa-eye text-white"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-1">Dry-Run Preview</h3>
+                                <p class="text-sm text-gray-600 dark:text-gray-400">See exactly what will change before writing — diff every file without touching disk</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="glass p-5 rounded-xl group hover:shadow-lg transition-all duration-300">
+                        <div class="flex items-start gap-4">
+                            <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform duration-300">
+                                <i class="fas fa-undo text-white"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-1">Git Rollback</h3>
+                                <p class="text-sm text-gray-600 dark:text-gray-400">Revert the last N applies — full version history preserved in local git</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="glass p-5 rounded-xl group hover:shadow-lg transition-all duration-300">
+                        <div class="flex items-start gap-4">
+                            <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-pink-500 to-pink-600 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform duration-300">
+                                <i class="fas fa-download text-white"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-1">Self-Update</h3>
+                                <p class="text-sm text-gray-600 dark:text-gray-400">Pulls latest release in place with SHA-256 verification</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="glass p-5 rounded-xl group hover:shadow-lg transition-all duration-300">
+                        <div class="flex items-start gap-4">
+                            <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-lime-500 to-lime-600 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform duration-300">
+                                <i class="fas fa-handshake text-white"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-1">Non-Destructive</h3>
+                                <p class="text-sm text-gray-600 dark:text-gray-400">Only overlays managed keys — your hooks, permissions, and editor settings survive</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="glass p-5 rounded-xl group hover:shadow-lg transition-all duration-300">
+                        <div class="flex items-start gap-4">
+                            <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform duration-300">
+                                <i class="fas fa-file-import text-white"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-1">Import from Any</h3>
+                                <p class="text-sm text-gray-600 dark:text-gray-400"><code class="text-xs">harness-sync init</code> picks the best source harness and imports everything</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="glass p-5 rounded-xl group hover:shadow-lg transition-all duration-300">
+                        <div class="flex items-start gap-4">
+                            <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-slate-500 to-slate-600 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform duration-300">
+                                <i class="fas fa-plus-circle text-white"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-1">Extensible</h3>
+                                <p class="text-sm text-gray-600 dark:text-gray-400">Add a harness: drop a Go package under <code class="text-xs">internal/adapters/</code></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Harnesses Section -->
+        <section id="harnesses" class="py-12 sm:py-16 md:py-20 bg-gray-50 dark:bg-gray-800 theme-transition">
+            <div class="max-w-6xl mx-auto px-4 sm:px-6">
+                <div class="text-center mb-8 sm:mb-12">
+                    <h2 class="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900 dark:text-gray-100 mb-3 sm:mb-4">Supported Harnesses</h2>
+                    <p class="text-base sm:text-lg text-gray-600 dark:text-gray-300 px-4">Each adapter grounded against real config files and official docs</p>
+                </div>
+                <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div class="glass p-5 rounded-xl hover:shadow-lg transition-all duration-300">
+                        <div class="flex items-center gap-3 mb-3">
+                            <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-violet-500 to-violet-700 flex items-center justify-center">
+                                <i class="fas fa-terminal text-white text-sm"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-semibold text-gray-900 dark:text-gray-100">claude-code</h3>
+                                <p class="text-xs text-gray-500 dark:text-gray-400">MCP · Skills · Instructions</p>
+                            </div>
+                        </div>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">Built-in subscription — provider config managed by Anthropic directly.</p>
+                    </div>
+                    <div class="glass p-5 rounded-xl hover:shadow-lg transition-all duration-300">
+                        <div class="flex items-center gap-3 mb-3">
+                            <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-rose-500 to-rose-700 flex items-center justify-center">
+                                <i class="fas fa-fire text-white text-sm"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-semibold text-gray-900 dark:text-gray-100">crush</h3>
+                                <p class="text-xs text-gray-500 dark:text-gray-400">MCP · Skills · Providers · Models</p>
+                            </div>
+                        </div>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">Full gateway rendering with provider map and default model support.</p>
+                    </div>
+                    <div class="glass p-5 rounded-xl hover:shadow-lg transition-all duration-300">
+                        <div class="flex items-center gap-3 mb-3">
+                            <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center">
+                                <i class="fas fa-weight text-white text-sm"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-semibold text-gray-900 dark:text-gray-100">kilo</h3>
+                                <p class="text-xs text-gray-500 dark:text-gray-400">MCP · Skills · Providers · Models</p>
+                            </div>
+                        </div>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">Kilo CLI with provider map, model, and small model configuration.</p>
+                    </div>
+                    <div class="glass p-5 rounded-xl hover:shadow-lg transition-all duration-300">
+                        <div class="flex items-center gap-3 mb-3">
+                            <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-cyan-500 to-cyan-700 flex items-center justify-center">
+                                <i class="fas fa-code text-white text-sm"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-semibold text-gray-900 dark:text-gray-100">opencode</h3>
+                                <p class="text-xs text-gray-500 dark:text-gray-400">MCP · Skills · Providers · Models · Instructions</p>
+                            </div>
+                        </div>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">Full rendering with JSONC config support and instructions merging.</p>
+                    </div>
+                    <div class="glass p-5 rounded-xl hover:shadow-lg transition-all duration-300">
+                        <div class="flex items-center gap-3 mb-3">
+                            <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-orange-500 to-orange-700 flex items-center justify-center">
+                                <i class="fas fa-feather-alt text-white text-sm"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-semibold text-gray-900 dark:text-gray-100">goose</h3>
+                                <p class="text-xs text-gray-500 dark:text-gray-400">MCP · Skills · Providers · Models</p>
+                            </div>
+                        </div>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">YAML config with extensions map and custom provider JSON files.</p>
+                    </div>
+                    <div class="glass p-5 rounded-xl hover:shadow-lg transition-all duration-300">
+                        <div class="flex items-center gap-3 mb-3">
+                            <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center">
+                                <i class="fas fa-robot text-white text-sm"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-semibold text-gray-900 dark:text-gray-100">cagent</h3>
+                                <p class="text-xs text-gray-500 dark:text-gray-400">MCP · Providers · Models · Instructions</p>
+                            </div>
+                        </div>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">Starter YAML config with per-agent model selection.</p>
+                    </div>
+                    <div class="glass p-5 rounded-xl hover:shadow-lg transition-all duration-300 sm:col-span-2 lg:col-span-1">
+                        <div class="flex items-center gap-3 mb-3">
+                            <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center">
+                                <i class="fas fa-pen-nib text-white text-sm"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-semibold text-gray-900 dark:text-gray-100">zed</h3>
+                                <p class="text-xs text-gray-500 dark:text-gray-400">MCP · Providers · Models</p>
+                            </div>
+                        </div>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">Context servers and language model configuration in settings.json.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Installation Section -->
+        <section id="installation" class="py-12 sm:py-16 md:py-20 bg-white dark:bg-gray-900 theme-transition">
+            <div class="max-w-6xl mx-auto px-4 sm:px-6">
+                <div class="text-center mb-8 sm:mb-12">
+                    <h2 class="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900 dark:text-gray-100 mb-3 sm:mb-4">Install</h2>
+                    <p class="text-base sm:text-lg text-gray-600 dark:text-gray-300 px-4">One binary, zero dependencies, every platform</p>
+                </div>
+                <div class="grid md:grid-cols-3 gap-6">
+                    <div class="glass p-6 rounded-xl">
+                        <div class="flex items-center gap-3 mb-4">
+                            <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center">
+                                <i class="fas fa-bolt text-white"></i>
+                            </div>
+                            <h3 class="font-semibold text-gray-900 dark:text-gray-100">One-liner</h3>
+                            <span class="text-xs bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded-full">Recommended</span>
+                        </div>
+                        <div class="bg-gray-900 dark:bg-gray-950 rounded-lg p-4 font-mono text-sm text-gray-100 overflow-x-auto">
+                            <span class="text-emerald-400">$</span> curl -fsSL https://raw.githubusercontent.com/<br/>&nbsp;&nbsp;lukaszraczylo/harness-sync/main/install.sh | bash
+                        </div>
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-3">Picks the right artefact for OS/arch, verifies SHA-256, drops binary in <code>~/.local/bin</code>.</p>
+                    </div>
+                    <div class="glass p-6 rounded-xl">
+                        <div class="flex items-center gap-3 mb-4">
+                            <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-amber-500 to-amber-700 flex items-center justify-center">
+                                <i class="fas fa-beer-mug-empty text-white"></i>
+                            </div>
+                            <h3 class="font-semibold text-gray-900 dark:text-gray-100">Homebrew</h3>
+                        </div>
+                        <div class="bg-gray-900 dark:bg-gray-950 rounded-lg p-4 font-mono text-sm text-gray-100 overflow-x-auto">
+                            <span class="text-emerald-400">$</span> brew install lukaszraczylo/taps/harness-sync
+                        </div>
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-3">macOS and Linux via Homebrew tap.</p>
+                    </div>
+                    <div class="glass p-6 rounded-xl">
+                        <div class="flex items-center gap-3 mb-4">
+                            <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center">
+                                <i class="fas fa-code-branch text-white"></i>
+                            </div>
+                            <h3 class="font-semibold text-gray-900 dark:text-gray-100">From Source</h3>
+                        </div>
+                        <div class="bg-gray-900 dark:bg-gray-950 rounded-lg p-4 font-mono text-sm text-gray-100 overflow-x-auto">
+                            <span class="text-emerald-400">$</span> git clone https://github.com/<br/>&nbsp;&nbsp;lukaszraczylo/harness-sync<br/>
+                            <span class="text-emerald-400">$</span> make build && make install
+                        </div>
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-3">Requires Go 1.24+ and <code>git</code> on <code>$PATH</code>.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Usage Section -->
+        <section id="usage" class="py-12 sm:py-16 md:py-20 bg-gray-50 dark:bg-gray-800 theme-transition">
+            <div class="max-w-6xl mx-auto px-4 sm:px-6">
+                <div class="text-center mb-8 sm:mb-12">
+                    <h2 class="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900 dark:text-gray-100 mb-3 sm:mb-4">Usage</h2>
+                    <p class="text-base sm:text-lg text-gray-600 dark:text-gray-300 px-4">Three commands to get going</p>
+                </div>
+                <div class="grid md:grid-cols-3 gap-6 mb-8">
+                    <div class="glass p-6 rounded-xl">
+                        <div class="flex items-center gap-3 mb-4">
+                            <span class="text-2xl font-bold gradient-text">01</span>
+                            <h3 class="font-semibold text-gray-900 dark:text-gray-100">Detect</h3>
+                        </div>
+                        <div class="bg-gray-900 dark:bg-gray-950 rounded-lg p-4 font-mono text-sm text-gray-100 mb-3">
+                            <span class="text-emerald-400">$</span> harness-sync detect
+                        </div>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">Lists which harnesses are installed on your machine.</p>
+                    </div>
+                    <div class="glass p-6 rounded-xl">
+                        <div class="flex items-center gap-3 mb-4">
+                            <span class="text-2xl font-bold gradient-text">02</span>
+                            <h3 class="font-semibold text-gray-900 dark:text-gray-100">Init</h3>
+                        </div>
+                        <div class="bg-gray-900 dark:bg-gray-950 rounded-lg p-4 font-mono text-sm text-gray-100 mb-3">
+                            <span class="text-emerald-400">$</span> harness-sync init
+                        </div>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">Imports config from detected harnesses into the canonical tree.</p>
+                    </div>
+                    <div class="glass p-6 rounded-xl">
+                        <div class="flex items-center gap-3 mb-4">
+                            <span class="text-2xl font-bold gradient-text">03</span>
+                            <h3 class="font-semibold text-gray-900 dark:text-gray-100">Apply</h3>
+                        </div>
+                        <div class="bg-gray-900 dark:bg-gray-950 rounded-lg p-4 font-mono text-sm text-gray-100 mb-3">
+                            <span class="text-emerald-400">$</span> harness-sync apply
+                        </div>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">Renders and writes native config to every detected harness.</p>
+                    </div>
+                </div>
+
+                <!-- Commands Reference -->
+                <div class="glass p-6 rounded-xl">
+                    <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-4 flex items-center">
+                        <i class="fas fa-list text-emerald-500 mr-2"></i>Full Command Reference
+                    </h3>
+                    <div class="bg-gray-900 dark:bg-gray-950 rounded-lg p-4 sm:p-6 font-mono text-xs sm:text-sm text-gray-100 overflow-x-auto">
+<pre class="whitespace-pre-wrap text-gray-300">
+<span class="text-emerald-400">$</span> harness-sync detect                       <span class="text-gray-500"># list adapters + detection status</span>
+<span class="text-emerald-400">$</span> harness-sync show [harness...]            <span class="text-gray-500"># print files each adapter manages</span>
+<span class="text-emerald-400">$</span> harness-sync init                         <span class="text-gray-500"># import from detected harnesses</span>
+                <span class="text-gray-500">--from a,b              # pick adapters, skip prompt</span>
+                <span class="text-gray-500">--no-prompt             # take all detected</span>
+                <span class="text-gray-500">--force                 # allow re-init</span>
+<span class="text-emerald-400">$</span> harness-sync apply [harness...]           <span class="text-gray-500"># render + write</span>
+                <span class="text-gray-500">--dry-run               # show plan, write nothing</span>
+                <span class="text-gray-500">--force                 # overwrite without merge</span>
+                <span class="text-gray-500">--yes                   # skip confirmation prompt</span>
+<span class="text-emerald-400">$</span> harness-sync diff [harness...]            <span class="text-gray-500"># apply --dry-run shorthand</span>
+<span class="text-emerald-400">$</span> harness-sync profile list                 <span class="text-gray-500"># list canonical profiles</span>
+<span class="text-emerald-400">$</span> harness-sync profile use &lt;name&gt;           <span class="text-gray-500"># switch active profile</span>
+                <span class="text-gray-500">--apply                 # reapply after switching</span>
+<span class="text-emerald-400">$</span> harness-sync rollback [n]                 <span class="text-gray-500"># git revert last N applies</span>
+<span class="text-emerald-400">$</span> harness-sync update                       <span class="text-gray-500"># reinstall latest release</span>
+</pre>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Architecture Section -->
+        <section id="architecture" class="py-12 sm:py-16 md:py-20 bg-white dark:bg-gray-900 theme-transition">
+            <div class="max-w-6xl mx-auto px-4 sm:px-6">
+                <div class="text-center mb-8 sm:mb-12">
+                    <h2 class="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900 dark:text-gray-100 mb-3 sm:mb-4">Architecture</h2>
+                    <p class="text-base sm:text-lg text-gray-600 dark:text-gray-300 px-4">Single Go binary, ~5000 LOC, 18 packages, 93 tests</p>
+                </div>
+                <div class="glass p-6 rounded-xl mb-8">
+                    <div class="flex justify-center">
+                        <img src="assets/architecture.svg" alt="harness-sync architecture" class="w-full max-w-3xl" />
+                    </div>
+                </div>
+                <div class="grid md:grid-cols-2 gap-6">
+                    <div class="glass p-6 rounded-xl">
+                        <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-4 flex items-center">
+                            <i class="fas fa-folder-tree text-emerald-500 mr-2"></i>Canonical Tree
+                        </h3>
+                        <div class="bg-gray-900 dark:bg-gray-950 rounded-lg p-4 font-mono text-sm text-gray-100 overflow-x-auto">
+<pre class="text-gray-300">
+<span class="text-cyan-400">~/.config/harness-sync/</span>  <span class="text-gray-500">(git)</span>
+├── profiles/<span class="text-amber-300">&lt;name&gt;.yaml</span>
+├── skills/<span class="text-amber-300">&lt;name&gt;/SKILL.md</span>
+├── agents/<span class="text-amber-300">&lt;name&gt;.md</span>
+├── mcp.yaml
+└── instructions/<span class="text-amber-300">global.md</span>
+</pre>
+                        </div>
+                    </div>
+                    <div class="glass p-6 rounded-xl">
+                        <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-4 flex items-center">
+                            <i class="fas fa-random text-cyan-500 mr-2"></i>3-Way Merge
+                        </h3>
+                        <div class="bg-gray-900 dark:bg-gray-950 rounded-lg p-4 font-mono text-sm text-gray-100 overflow-x-auto">
+<pre class="text-gray-300">
+<span class="text-gray-500">base</span>   ← state/  <span class="text-gray-500">(last render)</span>
+<span class="text-emerald-400">ours</span>   ← rendered <span class="text-gray-500">(what we'd write now)</span>
+<span class="text-cyan-400">theirs</span> ← on disk  <span class="text-gray-500">(what's actually there)</span>
+
+<span class="text-gray-500">disjoint</span> → clean merge, write
+<span class="text-amber-300">overlap </span> → .rej file, exit non-zero
+</pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer class="py-8 sm:py-12 bg-gray-900 dark:bg-gray-950 text-gray-400 theme-transition">
+            <div class="max-w-6xl mx-auto px-4 sm:px-6">
+                <div class="flex flex-col md:flex-row justify-between items-center gap-4">
+                    <div class="flex items-center gap-2">
+                        <i class="fas fa-sync-alt text-emerald-500"></i>
+                        <span class="font-semibold text-gray-300">harness-sync</span>
+                        <span class="text-sm">— one config, every harness</span>
+                    </div>
+                    <div class="flex items-center gap-6">
+                        <a href="https://github.com/lukaszraczylo/harness-sync" class="hover:text-gray-200 transition-colors" aria-label="GitHub">
+                            <i class="fab fa-github text-lg"></i>
+                        </a>
+                        <a href="https://github.com/sponsors/lukaszraczylo" class="hover:text-gray-200 transition-colors" aria-label="Sponsor">
+                            <i class="fas fa-heart text-lg"></i>
+                        </a>
+                        <span class="text-sm">MIT License</span>
+                    </div>
+                </div>
+            </div>
+        </footer>
+
+        <script>
+            const themeToggle = document.getElementById('theme-toggle');
+            themeToggle.addEventListener('click', () => {
+                const isDark = document.documentElement.classList.contains('dark');
+                if (isDark) {
+                    document.documentElement.classList.remove('dark');
+                    localStorage.theme = 'light';
+                } else {
+                    document.documentElement.classList.add('dark');
+                    localStorage.theme = 'dark';
+                }
+            });
+
+            const mobileMenuToggle = document.getElementById('mobile-menu-toggle');
+            const mobileMenu = document.getElementById('mobile-menu');
+            const menuOpenIcon = document.getElementById('menu-open-icon');
+            const menuCloseIcon = document.getElementById('menu-close-icon');
+
+            mobileMenuToggle.addEventListener('click', () => {
+                mobileMenu.classList.toggle('hidden');
+                menuOpenIcon.classList.toggle('hidden');
+                menuCloseIcon.classList.toggle('hidden');
+            });
+
+            mobileMenu.querySelectorAll('a').forEach(link => {
+                link.addEventListener('click', () => {
+                    mobileMenu.classList.add('hidden');
+                    menuOpenIcon.classList.remove('hidden');
+                    menuCloseIcon.classList.add('hidden');
+                });
+            });
+        </script>
+    </body>
+</html>

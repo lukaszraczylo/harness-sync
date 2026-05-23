@@ -2,6 +2,8 @@
 package kilo
 
 import (
+	"encoding/json"
+	"maps"
 	"os"
 	"path/filepath"
 
@@ -105,6 +107,52 @@ func (a *Adapter) Render(b *canonical.Bundle) (*adapter.FileSet, error) {
 		Kind:    adapter.RenderedFile,
 		Content: merged,
 	})
+
+	// Also merge into opencode.jsonc when present — kilo reads it as its
+	// primary config. Delete the enabled_providers filter so our provider is
+	// visible alongside user-defined providers. Deep-merge the provider map
+	// so existing providers (e.g. "llmgw") are preserved.
+	ocPath := filepath.Join(base, "opencode.jsonc")
+	if ocRaw, readErr := os.ReadFile(ocPath); readErr == nil {
+		// Parse existing content (supports JSONC comments internally).
+		var ocBase map[string]any
+		clean := common.StripJSONComments(string(ocRaw))
+		_ = json.Unmarshal([]byte(clean), &ocBase)
+		if ocBase == nil {
+			ocBase = map[string]any{}
+		}
+
+		ocOverlay := map[string]any{
+			"enabled_providers": nil, // delete filter
+		}
+
+		// Deep-merge provider: add our entries INTO the existing provider map.
+		if newProv, ok := overlay["provider"].(map[string]any); ok && len(newProv) > 0 {
+			existing, _ := ocBase["provider"].(map[string]any)
+			if existing == nil {
+				existing = map[string]any{}
+			}
+			maps.Copy(existing, newProv)
+			ocOverlay["provider"] = existing
+		}
+		// Copy model/small_model/mcp from the kilo.json overlay.
+		for _, k := range []string{"model", "small_model", "mcp"} {
+			if v, ok := overlay[k]; ok {
+				ocOverlay[k] = v
+			}
+		}
+
+		ocMerged, mergeErr := common.MergeJSONKeys([]byte(clean), ocOverlay)
+		if mergeErr != nil {
+			return nil, mergeErr
+		}
+		fs.Add(adapter.File{
+			Dest:    ocPath,
+			Kind:    adapter.RenderedFile,
+			Content: ocMerged,
+			NoMerge: true,
+		})
+	}
 
 	return fs, nil
 }
