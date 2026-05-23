@@ -1,6 +1,8 @@
 package canonical
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -34,8 +36,11 @@ func TestLoadMissingProfile(t *testing.T) {
 	assert.Error(t, err)
 }
 func TestLoadMissingConfigYAML(t *testing.T) {
-	// testdata/missing_config has no config.yaml — only an empty profiles dir.
-	_, err := Load("testdata/missing_config")
+	// Root exists but has no config.yaml — error must call that file out.
+	// Built at runtime so we don't depend on git tracking empty dirs (it doesn't).
+	root := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "profiles"), 0o750))
+	_, err := Load(root)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "config.yaml")
 }
