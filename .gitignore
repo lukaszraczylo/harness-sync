@@ -4,6 +4,10 @@
 *.test
 *.out
 
+# coverage
+coverage.out
+coverage.html
+
 # go
 /vendor/
 
@@ -13,4 +17,7 @@
 *.swp
 
 # os
-.DS_Store
+**/.DS_Store
+
+# user backups created during testing
+*.bak*-*
