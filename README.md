@@ -67,13 +67,31 @@ One canonical tree → seven harness-native configs, each with the correct keys.
 
 ## Install
 
+**One-line installer (recommended):**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/lukaszraczylo/harness-sync/main/install.sh | bash
+```
+
+Picks the right release artefact for your OS/arch, verifies the SHA-256, drops the binary in `~/.local/bin` (override with `INSTALL_DIR=/usr/local/bin`).
+
+**Homebrew (macOS / Linux):**
+
+```bash
+brew install lukaszraczylo/taps/harness-sync
+```
+
+**From source:**
+
 ```bash
 git clone https://github.com/lukaszraczylo/harness-sync
 cd harness-sync
 make build && make install      # installs to ~/.local/bin/harness-sync
 ```
 
-Requires Go 1.22+ and `git` on `$PATH`.
+Requires Go 1.24+ and `git` on `$PATH`.
+
+**Self-update:** once installed, `harness-sync update` pulls the latest release into the same directory as the running binary (`--dry-run` to preview).
 
 ---
 
@@ -154,6 +172,9 @@ harness-sync profile use <name>           switch active profile
                   --apply                 reapply automatically after switching
 harness-sync rollback [n]                 git revert last N apply commits
 harness-sync adapter list                 print registered adapters
+harness-sync update                       reinstall the latest release in place
+                  --dry-run               print the install command instead
+                  --install-dir DIR       override target directory
 ```
 
 Every command accepts `--root <path>` to point at a non-default canonical tree.
@@ -270,9 +291,16 @@ yourself), keychain integration beyond env-var substitution.
 
 ---
 
+## Sponsor
+
+If harness-sync saves you time, consider sponsoring continued work:
+
+- GitHub Sponsors → [@lukaszraczylo](https://github.com/sponsors/lukaszraczylo)
+- One-off coffee → [monzo.me/lukaszraczylo](https://monzo.me/lukaszraczylo)
+
 ## License
 
-Same as the surrounding repository.
+MIT — see [LICENSE](LICENSE).
 
 <p align="center">
   <img src="docs/assets/logo.svg" alt="harness-sync" width="120">

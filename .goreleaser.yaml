@@ -1,0 +1,85 @@
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: harness-sync
+    main: ./cmd/harness-sync
+    binary: harness-sync
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+
+archives:
+  - id: harness-sync
+    formats: [tar.gz]
+    name_template: "harness-sync-{{ .Os }}-{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    files:
+      - LICENSE
+      - README.md
+
+checksum:
+  name_template: "harness-sync-checksums.txt"
+  algorithm: sha256
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^Merge'
+      - '^WIP'
+      - '^chore: '
+      - '^Update go.mod'
+
+release:
+  github:
+    owner: lukaszraczylo
+    name: harness-sync
+  name_template: "version {{.Version}}"
+  draft: false
+  prerelease: auto
+
+homebrew_casks:
+  - name: harness-sync
+    repository:
+      owner: lukaszraczylo
+      name: homebrew-taps
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    directory: Casks
+    homepage: https://github.com/lukaszraczylo/harness-sync
+    description: "Sync skills, agents, MCP, and LLM endpoints across multiple LLM harnesses"
+    license: MIT
+    hooks:
+      post:
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr",
+                           args: ["-dr", "com.apple.quarantine", "#{staged_path}/harness-sync"]
+          end
+
+signs:
+  - cmd: cosign
+    signature: "${artifact}.sigstore.json"
+    args:
+      - sign-blob
+      - "--bundle=${signature}"
+      - "${artifact}"
+      - "--yes"
+    artifacts: checksum
+    output: true
