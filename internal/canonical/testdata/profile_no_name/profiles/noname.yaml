@@ -1,0 +1,5 @@
+gateway:
+  url: https://gw.lan
+  token: dummy
+models:
+  - id: claude-sonnet-4-6

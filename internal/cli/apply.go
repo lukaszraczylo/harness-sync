@@ -13,13 +13,25 @@ import (
 	"github.com/lukaszraczylo/harness-sync/internal/gitx"
 )
 
+// isTerminal returns true when os.Stdin is an interactive terminal.
+// Used to decide whether to show the first-run prompt.
+func isTerminal() bool {
+	fi, err := os.Stdin.Stat()
+	if err != nil {
+		return false
+	}
+	return (fi.Mode() & os.ModeCharDevice) != 0
+}
+
 // NewApply returns the `apply` subcommand. It renders the canonical bundle
 // to each detected (or selected) harness using the apply pipeline.
 func NewApply(reg *adapter.Registry) *cobra.Command {
 	var (
-		dryRun bool
-		force  bool
-		root   string
+		dryRun          bool
+		force           bool
+		root            string
+		allowIncomplete bool
+		yes             bool
 	)
 	cmd := &cobra.Command{
 		Use:   "apply [harness...]",
@@ -35,6 +47,31 @@ func NewApply(reg *adapter.Registry) *cobra.Command {
 			b, err := canonical.Load(root)
 			if err != nil {
 				return err
+			}
+
+			// Issue 3: refuse apply when gateway is incomplete.
+			if !allowIncomplete && (b.Profile.Gateway.URL == "" || b.Profile.Gateway.DefaultModel == "") {
+				return fmt.Errorf("profile %q is incomplete (gateway.url or gateway.default_model is empty); edit %s/profiles/%s.yaml then re-run",
+					b.Profile.Name, root, b.Profile.Name)
+			}
+
+			// Issue 5: first-time apply warning (state/ doesn't exist yet).
+			if !dryRun {
+				statePath := filepath.Join(root, "state")
+				if _, statErr := os.Stat(statePath); os.IsNotExist(statErr) {
+					if !yes && isTerminal() {
+						_, _ = fmt.Fprintf(cmd.OutOrStdout(),
+							"First-time apply to detected harnesses. harness-sync will:\n"+
+								"  - move existing target files to %s/backups/<harness>/\n"+
+								"  - replace them with symlinks to %s/skills, %s/agents\n"+
+								"  - render LLM configs from the active profile\n\n"+
+								"Continue? [y/N] ", root, root, root)
+						var answer string
+						if _, scanErr := fmt.Fscan(cmd.InOrStdin(), &answer); scanErr != nil || (answer != "y" && answer != "Y") {
+							return fmt.Errorf("aborted")
+						}
+					}
+				}
 			}
 
 			var selected []adapter.Adapter
@@ -87,5 +124,7 @@ func NewApply(reg *adapter.Registry) *cobra.Command {
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "print actions without writing")
 	cmd.Flags().BoolVar(&force, "force", false, "overwrite without 3-way merge")
 	cmd.Flags().StringVar(&root, "root", "", "canonical root (default ~/.config/harness-sync)")
+	cmd.Flags().BoolVar(&allowIncomplete, "allow-incomplete", false, "apply even when gateway.url or gateway.default_model is empty (for testing)")
+	cmd.Flags().BoolVar(&yes, "yes", false, "skip first-run confirmation prompt")
 	return cmd
 }

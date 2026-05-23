@@ -1,0 +1,2 @@
+enabled_harnesses: [claude-code]
+active_profile: noname

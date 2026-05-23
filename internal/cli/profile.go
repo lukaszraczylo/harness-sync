@@ -8,10 +8,13 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+
+	"github.com/lukaszraczylo/harness-sync/internal/adapter"
 )
 
 // NewProfile returns the `profile` subcommand with `list` and `use`.
-func NewProfile() *cobra.Command {
+// reg is used by the `use --apply` flag to invoke apply after switching.
+func NewProfile(reg *adapter.Registry) *cobra.Command {
 	var root string
 	rootFlag := func(c *cobra.Command) {
 		c.Flags().StringVar(&root, "root", "", "canonical root (default ~/.config/harness-sync)")
@@ -44,6 +47,7 @@ func NewProfile() *cobra.Command {
 	}
 	rootFlag(list)
 
+	var applyAfter bool
 	use := &cobra.Command{
 		Use:   "use <name>",
 		Short: "Set active profile (rewrites config.yaml)",
@@ -61,10 +65,24 @@ func NewProfile() *cobra.Command {
 			configPath := filepath.Join(r, "config.yaml")
 			existing, _ := os.ReadFile(configPath)
 			updated := setActiveProfile(string(existing), target)
-			return os.WriteFile(configPath, []byte(updated), 0o600)
+			if err := os.WriteFile(configPath, []byte(updated), 0o600); err != nil {
+				return err
+			}
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(),
+				"Switched active profile to %q. Run `harness-sync apply` to propagate.\n", target)
+			// Issue 4: --apply flag auto-invokes apply after switching.
+			if applyAfter {
+				applyCmd := NewApply(reg)
+				applyCmd.SetOut(cmd.OutOrStdout())
+				applyCmd.SetErr(cmd.ErrOrStderr())
+				applyCmd.SetArgs([]string{"--root", r, "--yes"})
+				return applyCmd.Execute()
+			}
+			return nil
 		},
 	}
 	rootFlag(use)
+	use.Flags().BoolVar(&applyAfter, "apply", false, "run apply automatically after switching profile")
 
 	cmd := &cobra.Command{Use: "profile", Short: "Manage profiles"}
 	cmd.AddCommand(list, use)

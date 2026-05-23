@@ -37,7 +37,9 @@ func TestInitApplyDiffCycle(t *testing.T) {
 	// apply may produce conflicts on a freshly imported tree (because the
 	// claude-code adapter merges into existing settings.json which differs
 	// from canonical); accept either clean exit or conflict exit.
-	out, err = run("apply")
+	// --allow-incomplete: the placeholder profile has empty URL by design.
+	// --yes: skip first-run TTY prompt in CI.
+	out, err = run("apply", "--allow-incomplete", "--yes")
 	if err != nil {
 		// Apply with conflicts is acceptable — verify the binary at least ran
 		assert.Contains(t, string(out), "applied")

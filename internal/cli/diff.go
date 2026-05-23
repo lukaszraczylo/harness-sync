@@ -17,7 +17,7 @@ func NewDiff(reg *adapter.Registry) *cobra.Command {
 			apply := NewApply(reg)
 			apply.SetOut(cmd.OutOrStdout())
 			apply.SetErr(cmd.ErrOrStderr())
-			applyArgs := []string{"--dry-run"}
+			applyArgs := []string{"--dry-run", "--allow-incomplete"}
 			if root != "" {
 				applyArgs = append(applyArgs, "--root", root)
 			}
