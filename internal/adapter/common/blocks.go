@@ -113,18 +113,34 @@ func CrushRoleModels(p *canonical.Profile) map[string]any {
 }
 
 // ProvidersAsMap returns a name-keyed map of provider objects for harnesses
-// like opencode/kilo that use `provider` (singular, map-shaped) instead of a
-// slice. Each entry has npm + options.{baseURL,apiKey} per the opencode schema.
+// like opencode/kilo that use `provider` (singular, map-shaped). Includes
+// top-level "name" and "models" Record so the harness UI can enumerate models.
 func ProvidersAsMap(p *canonical.Profile) map[string]any {
 	out := map[string]any{}
 	if p.Gateway.URL != "" {
-		out[gatewayProviderID] = map[string]any{
-			"npm": "@ai-sdk/openai-compatible",
+		models := map[string]any{}
+		for _, m := range p.Models {
+			displayName := m.ID
+			if m.Alias != "" {
+				displayName = m.Alias
+			}
+			models[m.ID] = map[string]any{
+				"name":  displayName,
+				"limit": map[string]any{"context": 200000, "output": 8192},
+			}
+		}
+		entry := map[string]any{
+			"name": "harness-sync gateway",
+			"npm":  "@ai-sdk/openai-compatible",
 			"options": map[string]any{
 				"baseURL": p.Gateway.URL,
 				"apiKey":  p.Gateway.Token,
 			},
 		}
+		if len(models) > 0 {
+			entry["models"] = models
+		}
+		out[gatewayProviderID] = entry
 	}
 	for _, up := range p.Upstreams {
 		entry := map[string]any{
@@ -144,6 +160,7 @@ func ProvidersAsMap(p *canonical.Profile) map[string]any {
 	}
 	return out
 }
+
 
 // KiloModelString returns the "providerID/modelID" string used by kilo/opencode.
 func KiloModelString(p *canonical.Profile) string {
