@@ -33,7 +33,7 @@ func main() {
 	root.AddCommand(cli.NewDiff(reg))
 	root.AddCommand(cli.NewShow(reg))
 	root.AddCommand(cli.NewInit(reg))
-	root.AddCommand(cli.NewProfile())
+	root.AddCommand(cli.NewProfile(reg))
 	root.AddCommand(cli.NewRollback())
 	root.AddCommand(cli.NewAdapter(reg))
 
