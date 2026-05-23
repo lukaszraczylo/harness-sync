@@ -12,7 +12,6 @@ import (
 	"github.com/lukaszraczylo/harness-sync/internal/canonical"
 	"github.com/lukaszraczylo/harness-sync/internal/gitx"
 	"github.com/lukaszraczylo/harness-sync/internal/merge"
-	"github.com/lukaszraczylo/harness-sync/internal/secrets"
 )
 
 // Options configures a Run call.
@@ -42,12 +41,14 @@ type Action struct {
 
 // Run renders all adapters and writes their FileSets to disk.
 // Conflicts are recorded as <dest>.rej files; processing continues past conflicts.
-// Run renders all adapters and writes their FileSets to disk.
-// Conflicts are recorded as <dest>.rej files; processing continues past conflicts.
+//
+// IMPORTANT: harness-sync intentionally does NOT resolve ${VAR} references in
+// canonical configs. Every supported harness performs its own env-var
+// expansion at MCP launch / config-load time, so resolving here would only
+// bake real secret values into the rendered target files AND the state/
+// snapshots tracked by git — which is a security regression. Leave
+// placeholders alone; the downstream harness resolves them at use time.
 func Run(opt Options) (*Report, error) {
-	if err := canonical.SubstituteSecrets(opt.Bundle, secrets.OSEnv); err != nil {
-		return nil, fmt.Errorf("env-var substitution: %w", err)
-	}
 	rep := &Report{}
 	for _, ad := range opt.Adapters {
 		files, err := ad.Render(opt.Bundle)
