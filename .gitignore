@@ -1,0 +1,16 @@
+# build artifacts
+/harness-sync
+/dist/
+*.test
+*.out
+
+# go
+/vendor/
+
+# editor
+.idea/
+.vscode/
+*.swp
+
+# os
+.DS_Store
