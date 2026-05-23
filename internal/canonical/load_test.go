@@ -33,3 +33,31 @@ func TestLoadMissingProfile(t *testing.T) {
 	_, err := Load("testdata/missing")
 	assert.Error(t, err)
 }
+func TestLoadMissingConfigYAML(t *testing.T) {
+	// testdata/missing_config has no config.yaml — only an empty profiles dir.
+	_, err := Load("testdata/missing_config")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "config.yaml")
+}
+
+func TestLoadMalformedConfigYAML(t *testing.T) {
+	_, err := Load("testdata/malformed_config")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "parse")
+	assert.Contains(t, err.Error(), "config.yaml")
+}
+
+func TestLoadMissingActiveProfile(t *testing.T) {
+	// config.yaml references "nonexistent" profile which has no file.
+	_, err := Load("testdata/missing_active_profile")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "nonexistent")
+}
+
+func TestLoadProfileMissingName(t *testing.T) {
+	// profile YAML exists but has no 'name' field.
+	_, err := Load("testdata/profile_no_name")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "profile")
+	assert.Contains(t, err.Error(), "name")
+}

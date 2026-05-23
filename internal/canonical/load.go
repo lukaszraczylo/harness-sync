@@ -31,7 +31,10 @@ func Load(root string) (*Bundle, error) {
 	profPath := filepath.Join(root, "profiles", b.Config.ActiveProfile+".yaml")
 	err = loadYAML(profPath, &b.Profile)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("profile %q: %w", b.Config.ActiveProfile, err)
+	}
+	if b.Profile.Name == "" {
+		return nil, fmt.Errorf("profile %q (%s): name is required (expected key 'name' with a string value)", b.Config.ActiveProfile, profPath)
 	}
 
 	mcpPath := filepath.Join(root, "mcp.yaml")
@@ -152,7 +155,7 @@ func loadYAML(path string, out interface{}) error {
 		return fmt.Errorf("read %s: %w", path, err)
 	}
 	if err := yaml.Unmarshal(b, out); err != nil {
-		return fmt.Errorf("parse %s: %w", path, err)
+		return fmt.Errorf("parse %s: %w (check YAML syntax and field names)", path, err)
 	}
 	return nil
 }
