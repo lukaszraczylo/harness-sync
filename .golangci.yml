@@ -1,8 +1,8 @@
+# golangci-lint v2 schema
 version: "2"
 
 run:
   timeout: 5m
-  go: '1.25'
 
 linters:
   enable:
@@ -14,30 +14,26 @@ linters:
     - gocyclo
     - misspell
 
+  settings:
+    gocyclo:
+      min-complexity: 25
+    govet:
+      enable-all: true
+    staticcheck:
+      checks: ["all"]
+
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters:
+          - gocyclo
+          - errcheck
+          - gosec
+
 formatters:
   enable:
     - gofmt
 
-linters-settings:
-  gocyclo:
-    min-complexity: 15
-  errcheck:
-    check-blank: true
-  govet:
-    enable-all: true
-  staticcheck:
-    checks: ["all"]
-
 issues:
-  exclude-rules:
-    - path: _test\.go
-      linters:
-        - gocyclo
-        - errcheck
-        - gosec
-
   max-issues-per-linter: 0
   max-same-issues: 0
-
-output:
-  sort-results: true
