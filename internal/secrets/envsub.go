@@ -10,8 +10,27 @@ import (
 // Lookup resolves a placeholder name to a value. Returns false if missing.
 type Lookup func(name string) (string, bool)
 
-// OSEnv resolves via os.LookupEnv.
+// OSEnv resolves via os.LookupEnv. Returns (value, true) when the variable
+// is set, otherwise (placeholder, true) so the literal ${NAME} reaches the
+// downstream config unchanged.
+//
+// Rationale: many harness MCP configs reference variables that the harness
+// itself injects at MCP launch time (e.g. ${CLAUDE_PROJECT} for claude-code,
+// ${GITHUB_TOKEN} when the user keeps it out of their login shell). Aborting
+// the apply for an unset variable would block valid configurations, so unset
+// names are passed through. Real secrets the user wants resolved at apply
+// time must be exported in the process environment.
 func OSEnv(name string) (string, bool) {
+	if v, ok := os.LookupEnv(name); ok {
+		return v, true
+	}
+	return "${" + name + "}", true
+}
+
+// StrictOSEnv resolves via os.LookupEnv and reports false for unset
+// variables, causing Substitute to return an error. Use when an empty
+// resolution is unacceptable (e.g. dedicated secrets pipeline).
+func StrictOSEnv(name string) (string, bool) {
 	return os.LookupEnv(name)
 }
 
