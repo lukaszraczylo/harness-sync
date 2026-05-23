@@ -62,6 +62,69 @@ func TestProfileUseHintMessage(t *testing.T) {
 	assert.Contains(t, buf.String(), "harness-sync apply")
 }
 
+func TestProfileRename(t *testing.T) {
+	root := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "profiles"), 0o750))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "profiles", "old.yaml"), []byte("name: old\ngateway:\n  url: https://gw\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "config.yaml"), []byte("active_profile: other\n"), 0o600))
+
+	var buf bytes.Buffer
+	cmd := NewProfile(nil)
+	cmd.SetOut(&buf)
+	cmd.SetArgs([]string{"rename", "old", "new", "--root", root})
+	require.NoError(t, cmd.Execute())
+
+	// old file gone, new file present with updated name field.
+	_, err := os.Stat(filepath.Join(root, "profiles", "old.yaml"))
+	assert.True(t, os.IsNotExist(err), "old.yaml should be removed")
+	body, err := os.ReadFile(filepath.Join(root, "profiles", "new.yaml"))
+	require.NoError(t, err)
+	assert.Contains(t, string(body), "name: new")
+	assert.NotContains(t, string(body), "name: old")
+
+	// config.yaml not modified — old was not active.
+	cfg, err := os.ReadFile(filepath.Join(root, "config.yaml"))
+	require.NoError(t, err)
+	assert.Contains(t, string(cfg), "active_profile: other")
+
+	assert.Contains(t, buf.String(), `"old" → "new"`)
+}
+
+func TestProfileRenameUpdatesActiveProfile(t *testing.T) {
+	root := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "profiles"), 0o750))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "profiles", "old.yaml"), []byte("name: old\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "config.yaml"), []byte("active_profile: old\n"), 0o600))
+
+	cmd := NewProfile(nil)
+	cmd.SetArgs([]string{"rename", "old", "new", "--root", root})
+	require.NoError(t, cmd.Execute())
+
+	cfg, err := os.ReadFile(filepath.Join(root, "config.yaml"))
+	require.NoError(t, err)
+	assert.Contains(t, string(cfg), "active_profile: new")
+}
+
+func TestProfileRenameErrorNotFound(t *testing.T) {
+	root := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "profiles"), 0o750))
+
+	cmd := NewProfile(nil)
+	cmd.SetArgs([]string{"rename", "missing", "new", "--root", root})
+	assert.Error(t, cmd.Execute())
+}
+
+func TestProfileRenameErrorAlreadyExists(t *testing.T) {
+	root := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "profiles"), 0o750))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "profiles", "old.yaml"), []byte("name: old\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "profiles", "new.yaml"), []byte("name: new\n"), 0o600))
+
+	cmd := NewProfile(nil)
+	cmd.SetArgs([]string{"rename", "old", "new", "--root", root})
+	assert.Error(t, cmd.Execute())
+}
+
 // TestProfileUseWithApply verifies --apply triggers apply after switching.
 func TestProfileUseWithApply(t *testing.T) {
 	root := t.TempDir()
