@@ -48,17 +48,61 @@ func TestCagentRenderProducesExpectedTargets(t *testing.T) {
 
 	agents := parsed["agents"].(map[string]any)
 	def := agents["default"].(map[string]any)
-	assert.Equal(t, "gateway/claude-sonnet-4-6", def["model"])
+	assert.Equal(t, "harness-sync-gateway/claude-sonnet-4-6", def["model"])
 	assert.Contains(t, def["instruction"], "# global instruction")
 
+	// providers map (new schema).
+	providers := parsed["providers"].(map[string]any)
+	gwProv := providers["harness-sync-gateway"].(map[string]any)
+	assert.Equal(t, "https://gw", gwProv["base_url"])
+	assert.Equal(t, "HARNESS_SYNC_GATEWAY_TOKEN", gwProv["token_key"])
+	assert.Equal(t, "openai", gwProv["provider"])
+
+	// models map.
 	models := parsed["models"].(map[string]any)
-	gw := models["gateway"].(map[string]any)
-	assert.Equal(t, "openai", gw["provider"])
-	assert.Equal(t, "https://gw", gw["base_url"])
+	gw := models["harness-sync-gateway"].(map[string]any)
+	assert.Equal(t, "harness-sync-gateway", gw["provider"])
+	assert.Equal(t, "claude-sonnet-4-6", gw["model"])
 
 	mcps := parsed["mcps"].(map[string]any)
 	fp := mcps["filepuff"].(map[string]any)
 	assert.Equal(t, "/bin/filepuff", fp["command"])
+}
+
+func TestCagentRenderProvidersAndModelsMaps(t *testing.T) {
+	home := t.TempDir()
+	ad := New(WithHome(home))
+	b := &canonical.Bundle{
+		Profile: canonical.Profile{
+			Gateway: canonical.Gateway{
+				URL:          "https://gw",
+				Token:        "tok",
+				DefaultModel: "claude-sonnet-4-6",
+			},
+		},
+	}
+	fs, err := ad.Render(b)
+	require.NoError(t, err)
+	seen := map[string]adapter.File{}
+	fs.ForEach(func(f adapter.File) { seen[f.Dest] = f })
+
+	cfgDest := filepath.Join(home, ".config", "cagent", "default.yaml")
+	var parsed map[string]any
+	require.NoError(t, yaml.Unmarshal(seen[cfgDest].Content, &parsed))
+
+	// providers block present.
+	providers, ok := parsed["providers"].(map[string]any)
+	require.True(t, ok, "providers must be a map")
+	gw, ok := providers["harness-sync-gateway"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "https://gw", gw["base_url"])
+	assert.Equal(t, "HARNESS_SYNC_GATEWAY_TOKEN", gw["token_key"])
+	assert.Equal(t, "openai", gw["provider"])
+
+	// agents.default.model uses inline shorthand.
+	agents := parsed["agents"].(map[string]any)
+	def := agents["default"].(map[string]any)
+	assert.Equal(t, "harness-sync-gateway/claude-sonnet-4-6", def["model"])
 }
 
 func TestCagentRenderNoMCP(t *testing.T) {

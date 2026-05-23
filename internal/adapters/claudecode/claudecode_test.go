@@ -94,6 +94,53 @@ func TestRenderMergesLiveClaudeJSON(t *testing.T) {
 	assert.Equal(t, "stdio", fp["type"])
 }
 
+func TestClaudeCodeRenderSetsAnthropicBaseURLInSettings(t *testing.T) {
+	home := t.TempDir()
+	ad := New(WithHome(home))
+	b := &canonical.Bundle{
+		Root: "/canon",
+		Profile: canonical.Profile{
+			Gateway: canonical.Gateway{
+				URL:          "https://gw",
+				Token:        "tok",
+				DefaultModel: "claude-sonnet-4-6",
+			},
+		},
+	}
+	fs, err := ad.Render(b)
+	require.NoError(t, err)
+	seen := map[string]adapter.File{}
+	fs.ForEach(func(f adapter.File) { seen[f.Dest] = f })
+
+	settingsDest := filepath.Join(home, ".claude", "settings.json")
+	require.Contains(t, seen, settingsDest)
+	assert.Equal(t, adapter.RenderedFile, seen[settingsDest].Kind)
+
+	var parsed map[string]any
+	require.NoError(t, json.Unmarshal(seen[settingsDest].Content, &parsed))
+	assert.Equal(t, "claude-sonnet-4-6", parsed["model"])
+	env, ok := parsed["env"].(map[string]any)
+	require.True(t, ok, "env must be a map")
+	assert.Equal(t, "https://gw", env["ANTHROPIC_BASE_URL"])
+	assert.Equal(t, "tok", env["ANTHROPIC_AUTH_TOKEN"])
+}
+
+func TestClaudeCodeRenderNoGatewayNoSettings(t *testing.T) {
+	home := t.TempDir()
+	ad := New(WithHome(home))
+	b := &canonical.Bundle{
+		Root:    "/canon",
+		Profile: canonical.Profile{},
+	}
+	fs, err := ad.Render(b)
+	require.NoError(t, err)
+	seen := map[string]adapter.File{}
+	fs.ForEach(func(f adapter.File) { seen[f.Dest] = f })
+
+	settingsDest := filepath.Join(home, ".claude", "settings.json")
+	assert.NotContains(t, seen, settingsDest, "settings.json must not be written when no gateway URL")
+}
+
 func TestImport(t *testing.T) {
 	home := t.TempDir()
 	base := filepath.Join(home, ".claude")

@@ -111,6 +111,37 @@ func TestZedRenderNoMCP(t *testing.T) {
 	assert.Empty(t, cs)
 }
 
+func TestZedRenderEmitsLanguageModelsOpenAI(t *testing.T) {
+	home := t.TempDir()
+	ad := New(WithHome(home))
+	b := &canonical.Bundle{
+		Profile: canonical.Profile{
+			Gateway: canonical.Gateway{URL: "https://gw", Token: "tok", DefaultModel: "claude-sonnet-4-6"},
+			Models:  []canonical.Model{{ID: "claude-sonnet-4-6", Alias: "sonnet"}},
+		},
+	}
+	fs, err := ad.Render(b)
+	require.NoError(t, err)
+	seen := map[string]adapter.File{}
+	fs.ForEach(func(f adapter.File) { seen[f.Dest] = f })
+
+	cfgDest := filepath.Join(home, ".config", "zed", "settings.json")
+	var parsed map[string]any
+	require.NoError(t, json.Unmarshal(seen[cfgDest].Content, &parsed))
+
+	lm, ok := parsed["language_models"].(map[string]any)
+	require.True(t, ok, "language_models must be present")
+	oai, ok := lm["openai"].(map[string]any)
+	require.True(t, ok, "language_models.openai must be present")
+	assert.Equal(t, "https://gw", oai["api_url"])
+	avail, ok := oai["available_models"].([]any)
+	require.True(t, ok)
+	require.Len(t, avail, 1)
+	m0 := avail[0].(map[string]any)
+	assert.Equal(t, "claude-sonnet-4-6", m0["name"])
+	assert.Equal(t, "sonnet", m0["display_name"])
+}
+
 func TestZedImport(t *testing.T) {
 	home := t.TempDir()
 	base := filepath.Join(home, ".config", "zed")

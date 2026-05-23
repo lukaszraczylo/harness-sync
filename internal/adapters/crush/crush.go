@@ -62,9 +62,12 @@ func (a *Adapter) Render(b *canonical.Bundle) (*adapter.FileSet, error) {
 
 	cfgPath := filepath.Join(base, "crush.json")
 	existing, _ := os.ReadFile(cfgPath)
-	overlay := map[string]any{
-		"providers":     common.BuildProviders(&b.Profile),
-		"default_model": b.Profile.Gateway.DefaultModel,
+	overlay := map[string]any{}
+	if providers := common.ProvidersAsCrushMap(&b.Profile); len(providers) > 0 {
+		overlay["providers"] = providers
+	}
+	if roleModels := common.CrushRoleModels(&b.Profile); len(roleModels) > 0 {
+		overlay["models"] = roleModels
 	}
 	if mcp := common.BuildMCPMapStyled(&b.MCP, common.MCPCrushStyle); len(mcp) > 0 {
 		overlay["mcp"] = mcp

@@ -4,9 +4,9 @@
 // MCP-equivalent servers go under "extensions" (not "mcp").
 // Model is split into GOOSE_PROVIDER + GOOSE_MODEL.
 //
-// Custom provider files (~/.config/goose/custom_providers/<name>.yaml) are
-// out of v1 scope. If a gateway URL is configured we set GOOSE_PROVIDER to
-// signal the intent; the user must hand-write the custom_providers file.
+// When a gateway URL is configured we:
+//   - Write ~/.config/goose/custom_providers/<providerName>.json
+//   - Set GOOSE_PROVIDER to <providerName> in config.yaml
 package goose
 
 import (
@@ -59,6 +59,8 @@ func (a *Adapter) Detect() bool {
 // Render produces the FileSet that applies the canonical bundle to goose.
 // config.yaml is MERGED; only GOOSE_PROVIDER, GOOSE_MODEL, and the
 // managed extension entries are overlaid.
+// When Gateway.URL is set, a custom_providers/<providerName>.json file is
+// also added to the FileSet so goose can load the provider on first run.
 func (a *Adapter) Render(b *canonical.Bundle) (*adapter.FileSet, error) {
 	fs := adapter.NewFileSet()
 	cfgPath := filepath.Join(a.home, ".config", "goose", "config.yaml")
@@ -67,9 +69,17 @@ func (a *Adapter) Render(b *canonical.Bundle) (*adapter.FileSet, error) {
 
 	provider, model := splitProviderModel(b.Profile.Gateway.DefaultModel)
 	if b.Profile.Gateway.URL != "" {
-		// Custom gateway: signal with provider name. User must create
-		// ~/.config/goose/custom_providers/harness-sync.yaml manually.
-		provider = "harness-sync"
+		// Emit the custom provider JSON file.
+		body, providerName := common.GooseCustomProviderFile(&b.Profile)
+		if body != nil {
+			cpDir := filepath.Join(a.home, ".config", "goose", "custom_providers")
+			fs.Add(adapter.File{
+				Dest:    filepath.Join(cpDir, providerName+".json"),
+				Kind:    adapter.RenderedFile,
+				Content: body,
+			})
+			provider = providerName
+		}
 	}
 
 	overlay := map[string]any{

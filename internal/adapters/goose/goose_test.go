@@ -1,6 +1,7 @@
 package goose
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -89,8 +90,40 @@ func TestGooseRenderGatewayURL(t *testing.T) {
 	cfgDest := filepath.Join(home, ".config", "goose", "config.yaml")
 	var parsed map[string]any
 	require.NoError(t, yaml.Unmarshal(seen[cfgDest].Content, &parsed))
-	// Custom gateway → provider is "harness-sync" (user must write custom_providers file).
-	assert.Equal(t, "harness-sync", parsed["GOOSE_PROVIDER"])
+	// Custom gateway → GOOSE_PROVIDER is the custom provider name.
+	assert.Equal(t, "custom_harness-sync-gateway", parsed["GOOSE_PROVIDER"])
+}
+
+func TestGooseRenderProducesCustomProviderFile(t *testing.T) {
+	home := t.TempDir()
+	ad := New(WithHome(home))
+	b := &canonical.Bundle{
+		Profile: canonical.Profile{
+			Gateway: canonical.Gateway{URL: "https://gw", Token: "tok", DefaultModel: "sonnet"},
+			Models:  []canonical.Model{{ID: "claude-sonnet-4-6"}},
+		},
+	}
+	fs, err := ad.Render(b)
+	require.NoError(t, err)
+
+	seen := map[string]adapter.File{}
+	fs.ForEach(func(f adapter.File) { seen[f.Dest] = f })
+
+	cpDest := filepath.Join(home, ".config", "goose", "custom_providers", "custom_harness-sync-gateway.json")
+	require.Contains(t, seen, cpDest)
+	assert.Equal(t, adapter.RenderedFile, seen[cpDest].Kind)
+
+	var cp map[string]any
+	require.NoError(t, json.Unmarshal(seen[cpDest].Content, &cp))
+	assert.Equal(t, "custom_harness-sync-gateway", cp["name"])
+	assert.Equal(t, "openai", cp["engine"])
+	assert.Equal(t, true, cp["requires_auth"])
+	assert.Equal(t, "CUSTOM_HARNESS_SYNC_GATEWAY_API_KEY", cp["api_key_env"])
+	models, ok := cp["models"].([]any)
+	require.True(t, ok)
+	require.Len(t, models, 1)
+	m0 := models[0].(map[string]any)
+	assert.Equal(t, "claude-sonnet-4-6", m0["name"])
 }
 
 func TestGooseImport(t *testing.T) {

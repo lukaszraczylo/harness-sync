@@ -66,8 +66,14 @@ func (a *Adapter) Render(b *canonical.Bundle) (*adapter.FileSet, error) {
 
 	cfgPath := filepath.Join(base, "kilo.json")
 	existing, _ := os.ReadFile(cfgPath)
-	overlay := map[string]any{
-		"model": b.Profile.Gateway.DefaultModel,
+	modelStr := common.KiloModelString(&b.Profile)
+	overlay := map[string]any{}
+	if providers := common.ProvidersAsMap(&b.Profile); len(providers) > 0 {
+		overlay["provider"] = providers
+	}
+	if modelStr != "" {
+		overlay["model"] = modelStr
+		overlay["small_model"] = modelStr
 	}
 	if mcp := common.BuildMCPMapStyled(&b.MCP, common.MCPOpencodeStyle); len(mcp) > 0 {
 		overlay["mcp"] = mcp

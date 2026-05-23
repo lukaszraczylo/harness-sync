@@ -74,6 +74,10 @@ func (a *Adapter) Render(b *canonical.Bundle) (*adapter.FileSet, error) {
 		}
 	}
 
+	if lm := common.ZedLanguageModels(&b.Profile); len(lm) > 0 {
+		overlay["language_models"] = lm
+	}
+
 	merged, err := common.MergeJSONKeys(existing, overlay)
 	if err != nil {
 		return nil, err

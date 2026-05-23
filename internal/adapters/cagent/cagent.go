@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 
 	"github.com/lukaszraczylo/harness-sync/internal/adapter"
+	"github.com/lukaszraczylo/harness-sync/internal/adapter/common"
 	"github.com/lukaszraczylo/harness-sync/internal/canonical"
 
 	"gopkg.in/yaml.v3"
@@ -76,6 +77,12 @@ func (a *Adapter) Render(b *canonical.Bundle) (*adapter.FileSet, error) {
 		mcps[s.Name] = e
 	}
 
+	// inline model shorthand: "providerID/modelID"
+	modelRef := ""
+	if b.Profile.Gateway.DefaultModel != "" {
+		modelRef = "harness-sync-gateway/" + b.Profile.Gateway.DefaultModel
+	}
+
 	cfg := map[string]any{
 		"version": 8,
 		"metadata": map[string]any{
@@ -83,14 +90,15 @@ func (a *Adapter) Render(b *canonical.Bundle) (*adapter.FileSet, error) {
 		},
 		"agents": map[string]any{
 			"default": map[string]any{
-				"model":       "gateway/" + b.Profile.Gateway.DefaultModel,
+				"model":       modelRef,
 				"instruction": instructions,
 			},
 		},
+		"providers": common.ProvidersAsCagentMap(&b.Profile),
 		"models": map[string]any{
-			"gateway": map[string]any{
-				"provider": "openai", // cagent gateway via openai-compat
-				"base_url": b.Profile.Gateway.URL,
+			"harness-sync-gateway": map[string]any{
+				"provider": "harness-sync-gateway",
+				"model":    b.Profile.Gateway.DefaultModel,
 			},
 		},
 	}

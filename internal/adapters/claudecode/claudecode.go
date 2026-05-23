@@ -78,6 +78,29 @@ func (a *Adapter) Render(b *canonical.Bundle) (*adapter.FileSet, error) {
 		Content: []byte(instructions),
 	})
 
+	// settings.json holds the gateway env vars + model override.
+	// Only emit when a gateway URL is configured.
+	if b.Profile.Gateway.URL != "" {
+		settingsPath := filepath.Join(base, "settings.json")
+		settingsExisting, _ := os.ReadFile(settingsPath)
+		settingsOverlay := map[string]any{
+			"model": b.Profile.Gateway.DefaultModel,
+			"env": map[string]any{
+				"ANTHROPIC_BASE_URL":   b.Profile.Gateway.URL,
+				"ANTHROPIC_AUTH_TOKEN": b.Profile.Gateway.Token,
+			},
+		}
+		settingsMerged, err := common.MergeJSONKeys(settingsExisting, settingsOverlay)
+		if err != nil {
+			return nil, err
+		}
+		fs.Add(adapter.File{
+			Dest:    settingsPath,
+			Kind:    adapter.RenderedFile,
+			Content: settingsMerged,
+		})
+	}
+
 	// Claude Code reads MCP servers from two files on disk:
 	//   * ~/.claude.json (live, written by `claude mcp add`)
 	//   * ~/.claude/mcp_servers.json (older / fallback location)

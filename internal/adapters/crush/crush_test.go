@@ -41,9 +41,20 @@ func TestCrushRenderProducesExpectedTargets(t *testing.T) {
 	var parsed map[string]any
 	require.NoError(t, json.Unmarshal(seen[cfgDest].Content, &parsed))
 	assert.NotNil(t, parsed)
-	// Must use "default_model", not "model".
-	assert.Contains(t, parsed, "default_model")
-	// Must not write "mcpServers" — crush uses "mcp".
+	// providers must be a map (not array), keyed by providerID.
+	providers, ok := parsed["providers"].(map[string]any)
+	require.True(t, ok, "providers must be a map")
+	gw, ok := providers["harness-sync-gateway"].(map[string]any)
+	require.True(t, ok, "harness-sync-gateway provider missing")
+	assert.Equal(t, "openai-compat", gw["type"])
+	// models must be role-map with large/small/title.
+	models, ok := parsed["models"].(map[string]any)
+	require.True(t, ok, "models must be a map")
+	assert.Contains(t, models, "large")
+	assert.Contains(t, models, "small")
+	assert.Contains(t, models, "title")
+	// Must NOT write "default_model" or "mcpServers".
+	assert.NotContains(t, parsed, "default_model")
 	assert.NotContains(t, parsed, "mcpServers")
 }
 
@@ -105,6 +116,54 @@ func TestCrushRenderMergesExistingKeys(t *testing.T) {
 	assert.Contains(t, parsed, "lsp")
 	assert.Contains(t, parsed, "permissions")
 }
+func TestCrushRenderProducesMapProvidersAndRoleModels(t *testing.T) {
+	home := t.TempDir()
+	ad := New(WithHome(home))
+	b := &canonical.Bundle{
+		Profile: canonical.Profile{
+			Gateway: canonical.Gateway{URL: "https://gw", Token: "tok", DefaultModel: "claude-sonnet-4-6"},
+			Models:  []canonical.Model{{ID: "claude-sonnet-4-6"}},
+		},
+	}
+	fs, err := ad.Render(b)
+	require.NoError(t, err)
+	seen := map[string]adapter.File{}
+	fs.ForEach(func(f adapter.File) { seen[f.Dest] = f })
+
+	cfgDest := filepath.Join(home, ".config", "crush", "crush.json")
+	var parsed map[string]any
+	require.NoError(t, json.Unmarshal(seen[cfgDest].Content, &parsed))
+
+	// providers is a map, not an array.
+	providers, ok := parsed["providers"].(map[string]any)
+	require.True(t, ok, "providers must be a map")
+	gw, ok := providers["harness-sync-gateway"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "openai-compat", gw["type"])
+	assert.Equal(t, "https://gw", gw["base_url"])
+	provModels, ok := gw["models"].([]any)
+	require.True(t, ok, "models must be array inside provider")
+	require.Len(t, provModels, 1)
+	m0 := provModels[0].(map[string]any)
+	assert.Equal(t, "claude-sonnet-4-6", m0["id"])
+	// All 10 required fields present.
+	for _, field := range []string{"id", "name", "cost_per_1m_in", "cost_per_1m_out",
+		"cost_per_1m_in_cached", "cost_per_1m_out_cached", "context_window",
+		"default_max_tokens", "can_reason", "supports_attachments"} {
+		assert.Contains(t, m0, field, "missing field %s", field)
+	}
+
+	// top-level models is role-map.
+	roleModels, ok := parsed["models"].(map[string]any)
+	require.True(t, ok)
+	for _, role := range []string{"large", "small", "title"} {
+		sel, ok := roleModels[role].(map[string]any)
+		require.True(t, ok, "role %s missing", role)
+		assert.Equal(t, "claude-sonnet-4-6", sel["model"])
+		assert.Equal(t, "harness-sync-gateway", sel["provider"])
+	}
+}
+
 func TestCrushImportRoundtrip(t *testing.T) {
 	home := t.TempDir()
 	base := filepath.Join(home, ".config", "crush")

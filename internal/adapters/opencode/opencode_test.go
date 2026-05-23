@@ -109,6 +109,37 @@ func TestOpencodeRenderMergesExistingKeys(t *testing.T) {
 	assert.Contains(t, parsed, "model")
 	assert.Contains(t, parsed, "provider")
 }
+func TestOpencodeRenderProviderHasNpm(t *testing.T) {
+	home := t.TempDir()
+	ad := New(WithHome(home))
+	b := &canonical.Bundle{
+		Profile: canonical.Profile{
+			Gateway: canonical.Gateway{URL: "https://gw", Token: "tok", DefaultModel: "claude-sonnet-4-6"},
+		},
+	}
+	fs, err := ad.Render(b)
+	require.NoError(t, err)
+	seen := map[string]adapter.File{}
+	fs.ForEach(func(f adapter.File) { seen[f.Dest] = f })
+
+	cfgDest := filepath.Join(home, ".config", "opencode", "opencode.jsonc")
+	var parsed map[string]any
+	require.NoError(t, json.Unmarshal(seen[cfgDest].Content, &parsed))
+
+	// provider map has npm field.
+	provider, ok := parsed["provider"].(map[string]any)
+	require.True(t, ok)
+	gw, ok := provider["harness-sync-gateway"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "@ai-sdk/openai-compatible", gw["npm"])
+	opts, ok := gw["options"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "https://gw", opts["baseURL"])
+
+	// model is "harness-sync-gateway/modelID".
+	assert.Equal(t, "harness-sync-gateway/claude-sonnet-4-6", parsed["model"])
+}
+
 func TestOpencodeImportStripsComments(t *testing.T) {
 	home := t.TempDir()
 	base := filepath.Join(home, ".config", "opencode")

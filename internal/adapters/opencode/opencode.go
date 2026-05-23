@@ -59,7 +59,7 @@ func (a *Adapter) Render(b *canonical.Bundle) (*adapter.FileSet, error) {
 	existing, _ := os.ReadFile(cfgPath)
 	overlay := map[string]any{
 		"provider": common.ProvidersAsMap(&b.Profile),
-		"model":    b.Profile.Gateway.DefaultModel,
+		"model":    common.KiloModelString(&b.Profile),
 	}
 	if mcp := common.BuildMCPMapStyled(&b.MCP, common.MCPOpencodeStyle); len(mcp) > 0 {
 		overlay["mcp"] = mcp
