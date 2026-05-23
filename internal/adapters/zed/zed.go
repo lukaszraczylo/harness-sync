@@ -52,7 +52,7 @@ func (a *Adapter) Capabilities() adapter.HarnessCapabilities {
 	return adapter.HarnessCapabilities{
 		ManagesProviders:    true,
 		ManagesModels:       true,
-		ManagesMCP:          true,
+		ManagesMCP:          false, // Agent panel uses Extensions; context_servers key causes serde parse errors
 		ManagesSkills:       false,
 		ManagesInstructions: false,
 		HasBuiltInSub:       false,
@@ -67,14 +67,22 @@ func (a *Adapter) Detect() bool {
 
 // Render produces the FileSet that applies the canonical bundle to Zed.
 // settings.json is MERGED to preserve all user-managed Zed configuration.
-// Manages: context_servers (MCP), language_models.openai, agent.default_model.
+// Manages: language_models.openai_compatible, agent.default_model.
+//
+// NOTE: context_servers is NOT written. Zed 1.3+ uses Extension-based MCP
+// servers in the Agent panel; writing context_servers causes a serde parse
+// error (ContextServerSettingsContent untagged enum bug) that aborts loading
+// the entire settings.json. We clear any existing context_servers key to fix
+// pre-existing parse errors from user-configured entries.
 func (a *Adapter) Render(b *canonical.Bundle) (*adapter.FileSet, error) {
 	fs := adapter.NewFileSet()
 	cfgPath := filepath.Join(a.home, ".config", "zed", "settings.json")
 	existing, _ := os.ReadFile(cfgPath)
 
+	// Set context_servers to nil so MergeJSONKeys removes the key entirely,
+	// clearing any entries that trigger the serde ContextServerSettingsContent bug.
 	overlay := map[string]any{
-		"context_servers": common.BuildMCPMapStyled(&b.MCP, common.MCPZedStyle),
+		"context_servers": nil,
 	}
 
 	if b.Profile.Gateway.URL != "" {

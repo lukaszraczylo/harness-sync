@@ -58,13 +58,9 @@ func TestZedRenderProducesExpectedTargets(t *testing.T) {
 	gw := oc["harness-sync-gateway"].(map[string]any)
 	assert.Equal(t, "https://llmgw.example.com/v1", gw["api_url"])
 
-	// context_servers — no "enabled" or "source" (Zed serde bug workaround).
-	cs := parsed["context_servers"].(map[string]any)
-	fp := cs["filepuff"].(map[string]any)
-	assert.Equal(t, "/bin/filepuff", fp["command"])
-	assert.Equal(t, []any{"--serve"}, fp["args"])
-	assert.NotContains(t, fp, "enabled")
-	assert.NotContains(t, fp, "source")
+	// context_servers must be absent — Zed serde untagged-enum bug aborts
+	// settings loading when this key is present; we delete it via nil overlay.
+	assert.NotContains(t, parsed, "context_servers")
 }
 
 func TestZedRenderMergesExistingKeys(t *testing.T) {
@@ -96,9 +92,9 @@ func TestZedRenderMergesExistingKeys(t *testing.T) {
 	assert.Equal(t, "One Dark", parsed["theme"])
 	assert.Equal(t, float64(16), parsed["font_size"])
 	assert.Equal(t, true, parsed["vim_mode"])
-	// Managed keys present.
+	// Managed keys present; context_servers absent (serde bug — we delete it).
 	assert.Contains(t, parsed, "agent")
-	assert.Contains(t, parsed, "context_servers")
+	assert.NotContains(t, parsed, "context_servers")
 }
 
 func TestZedRenderNoMCP(t *testing.T) {
@@ -118,10 +114,8 @@ func TestZedRenderNoMCP(t *testing.T) {
 	cfgDest := filepath.Join(home, ".config", "zed", "settings.json")
 	var parsed map[string]any
 	require.NoError(t, json.Unmarshal(seen[cfgDest].Content, &parsed))
-	// context_servers key present but empty map.
-	cs, ok := parsed["context_servers"]
-	assert.True(t, ok)
-	assert.Empty(t, cs)
+	// context_servers must be absent (nil overlay deletes the key).
+	assert.NotContains(t, parsed, "context_servers")
 }
 
 func TestZedRenderEmitsLanguageModelsOpenAICompatible(t *testing.T) {
