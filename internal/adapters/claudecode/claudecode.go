@@ -78,20 +78,40 @@ func (a *Adapter) Render(b *canonical.Bundle) (*adapter.FileSet, error) {
 		Content: []byte(instructions),
 	})
 
-	settingsPath := filepath.Join(base, "settings.json")
-	existing, _ := os.ReadFile(settingsPath)
-	overlay := map[string]any{
-		"mcpServers": common.BuildMCPMapStyled(&b.MCP, common.MCPClaudeStyle),
-	}
-	merged, err := common.MergeJSONKeys(existing, overlay)
+	// Claude Code reads MCP servers from two files on disk:
+	//   * ~/.claude.json (live, written by `claude mcp add`)
+	//   * ~/.claude/mcp_servers.json (older / fallback location)
+	// Write the dedicated file as the canonical destination, AND merge the
+	// same map into ~/.claude.json (preserving every other key in that
+	// large state file) so both stay in sync.
+	mcpMap := common.BuildMCPMapStyled(&b.MCP, common.MCPClaudeStyle)
+	overlay := map[string]any{"mcpServers": mcpMap}
+
+	dedicatedPath := filepath.Join(base, "mcp_servers.json")
+	dedicatedExisting, _ := os.ReadFile(dedicatedPath)
+	dedicatedMerged, err := common.MergeJSONKeys(dedicatedExisting, overlay)
 	if err != nil {
 		return nil, err
 	}
 	fs.Add(adapter.File{
-		Dest:    settingsPath,
+		Dest:    dedicatedPath,
 		Kind:    adapter.RenderedFile,
-		Content: merged,
+		Content: dedicatedMerged,
 	})
+
+	livePath := filepath.Join(a.home, ".claude.json")
+	if _, err := os.Stat(livePath); err == nil {
+		liveExisting, _ := os.ReadFile(livePath)
+		liveMerged, err := common.MergeJSONKeys(liveExisting, overlay)
+		if err != nil {
+			return nil, err
+		}
+		fs.Add(adapter.File{
+			Dest:    livePath,
+			Kind:    adapter.RenderedFile,
+			Content: liveMerged,
+		})
+	}
 
 	return fs, nil
 }

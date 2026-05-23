@@ -32,20 +32,29 @@ func mcpEntry(s canonical.MCPServer, style MCPStyle) map[string]any {
 	e := map[string]any{}
 	switch style {
 	case MCPClaudeStyle:
-		if s.Command != "" {
-			e["command"] = s.Command
-		}
-		if len(s.Args) > 0 {
-			e["args"] = s.Args
-		}
+		// Claude Code's actual entry shape uses "type" (not "transport").
+		// Default to stdio when no URL is set.
+		t := s.Transport
 		if s.URL != "" {
+			if t == "" {
+				t = "http"
+			}
+			e["type"] = t
 			e["url"] = s.URL
-		}
-		if s.Transport != "" {
-			e["transport"] = s.Transport
-		}
-		if len(s.Env) > 0 {
-			e["env"] = s.Env
+		} else {
+			if t == "" {
+				t = "stdio"
+			}
+			e["type"] = t
+			if s.Command != "" {
+				e["command"] = s.Command
+			}
+			if len(s.Args) > 0 {
+				e["args"] = s.Args
+			}
+			if len(s.Env) > 0 {
+				e["env"] = s.Env
+			}
 		}
 	case MCPCrushStyle:
 		if s.URL != "" {

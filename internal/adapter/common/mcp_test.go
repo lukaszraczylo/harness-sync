@@ -14,14 +14,15 @@ func reg(servers ...canonical.MCPServer) *canonical.MCPRegistry {
 }
 
 func TestBuildMCPMapStyledClaudeStyle(t *testing.T) {
-	r := reg(canonical.MCPServer{Name: "fp", Command: "/bin/fp", Args: []string{"--flag"}, Transport: "stdio"})
+	r := reg(canonical.MCPServer{Name: "fp", Command: "/bin/fp", Args: []string{"--flag"}})
 	out := BuildMCPMapStyled(r, MCPClaudeStyle)
 	require.Contains(t, out, "fp")
 	e := out["fp"].(map[string]any)
 	assert.Equal(t, "/bin/fp", e["command"])
 	assert.Equal(t, []string{"--flag"}, e["args"])
-	assert.Equal(t, "stdio", e["transport"])
-	assert.NotContains(t, e, "type")
+	// Claude's actual entry shape uses "type" (defaults to stdio when no URL).
+	assert.Equal(t, "stdio", e["type"])
+	assert.NotContains(t, e, "transport")
 }
 
 func TestBuildMCPMapStyledClaudeStyleURL(t *testing.T) {
@@ -29,7 +30,7 @@ func TestBuildMCPMapStyledClaudeStyleURL(t *testing.T) {
 	out := BuildMCPMapStyled(r, MCPClaudeStyle)
 	e := out["remote"].(map[string]any)
 	assert.Equal(t, "https://example.com", e["url"])
-	assert.NotContains(t, e, "type")
+	assert.Equal(t, "http", e["type"])
 }
 
 func TestBuildMCPMapStyledCrushStdio(t *testing.T) {

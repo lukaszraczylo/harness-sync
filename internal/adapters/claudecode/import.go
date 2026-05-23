@@ -38,10 +38,27 @@ func importFrom(home string) (*adapter.ImportResult, error) {
 	}
 	res.Instructions = body
 
-	servers, err := common.ImportMCPFromJSONFile(filepath.Join(base, "settings.json"), "mcpServers")
-	if err != nil {
-		return nil, err
+	// Claude Code stores MCP servers across several files. Read all known
+	// locations and dedupe by name; ~/.claude.json is the live source so
+	// its entries win on conflict.
+	mcpSources := []string{
+		filepath.Join(home, ".claude.json"),
+		filepath.Join(base, "mcp_servers.json"),
+		filepath.Join(base, "settings.json"),
 	}
-	res.MCP = servers
+	seen := map[string]bool{}
+	for _, p := range mcpSources {
+		servers, err := common.ImportMCPFromJSONFile(p, "mcpServers")
+		if err != nil {
+			return nil, err
+		}
+		for _, s := range servers {
+			if seen[s.Name] {
+				continue
+			}
+			seen[s.Name] = true
+			res.MCP = append(res.MCP, s)
+		}
+	}
 	return res, nil
 }
