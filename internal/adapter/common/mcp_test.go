@@ -89,8 +89,9 @@ func TestBuildMCPMapStyledZedStdio(t *testing.T) {
 	r := reg(canonical.MCPServer{Name: "fp", Command: "/bin/fp", Args: []string{"-x"}})
 	out := BuildMCPMapStyled(r, MCPZedStyle)
 	e := out["fp"].(map[string]any)
-	assert.Equal(t, true, e["enabled"])
-	assert.Equal(t, "custom", e["source"])
+	// Zed 1.3.x serde bug: "enabled" and "source" must NOT be present.
+	assert.NotContains(t, e, "enabled")
+	assert.NotContains(t, e, "source")
 	assert.Equal(t, "/bin/fp", e["command"])
 	assert.Equal(t, []string{"-x"}, e["args"])
 }
@@ -99,7 +100,8 @@ func TestBuildMCPMapStyledZedURL(t *testing.T) {
 	r := reg(canonical.MCPServer{Name: "r", URL: "https://example.com"})
 	out := BuildMCPMapStyled(r, MCPZedStyle)
 	e := out["r"].(map[string]any)
-	assert.Equal(t, true, e["enabled"])
+	// Zed 1.3.x serde bug: "enabled" must NOT be present.
+	assert.NotContains(t, e, "enabled")
 	assert.Equal(t, "https://example.com", e["url"])
 	assert.NotContains(t, e, "source")
 }

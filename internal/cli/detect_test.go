@@ -24,6 +24,9 @@ func (d *detectableAdapter) Render(_ *canonical.Bundle) (*adapter.FileSet, error
 func (d *detectableAdapter) Import(_ string) (*adapter.ImportResult, error) {
 	return &adapter.ImportResult{}, nil
 }
+func (d *detectableAdapter) Capabilities() adapter.HarnessCapabilities {
+	return adapter.HarnessCapabilities{ManagesMCP: true}
+}
 
 func TestDetectCommandPrintsList(t *testing.T) {
 	reg := adapter.NewRegistry()

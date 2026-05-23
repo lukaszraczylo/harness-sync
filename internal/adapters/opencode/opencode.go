@@ -41,6 +41,18 @@ func defaultHome() string {
 // Name returns the harness identifier.
 func (a *Adapter) Name() string { return name }
 
+// Capabilities declares what opencode harness-sync manages.
+func (a *Adapter) Capabilities() adapter.HarnessCapabilities {
+	return adapter.HarnessCapabilities{
+		ManagesProviders:    true,
+		ManagesModels:       true,
+		ManagesMCP:          true,
+		ManagesSkills:       true,
+		ManagesInstructions: true,
+		HasBuiltInSub:       false,
+	}
+}
+
 // Detect returns true when ~/.config/opencode exists.
 func (a *Adapter) Detect() bool {
 	_, err := os.Stat(filepath.Join(a.home, ".config", "opencode"))
@@ -54,6 +66,13 @@ func (a *Adapter) Detect() bool {
 func (a *Adapter) Render(b *canonical.Bundle) (*adapter.FileSet, error) {
 	fs := adapter.NewFileSet()
 	base := filepath.Join(a.home, ".config", "opencode")
+
+	// opencode reads skills from ~/.config/opencode/skills/<name>/SKILL.md
+	fs.Add(adapter.File{
+		Dest:          filepath.Join(base, "skills"),
+		Kind:          adapter.SymlinkDir,
+		SymlinkTarget: filepath.Join(b.Root, "skills"),
+	})
 
 	cfgPath := filepath.Join(base, "opencode.jsonc")
 	existing, _ := os.ReadFile(cfgPath)

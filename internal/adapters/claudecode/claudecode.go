@@ -43,6 +43,19 @@ func defaultHome() string {
 // Name returns the harness identifier.
 func (a *Adapter) Name() string { return name }
 
+// Capabilities declares what claude-code harness-sync manages.
+// Claude Code has its own Anthropic Max subscription — provider/model config is skipped.
+func (a *Adapter) Capabilities() adapter.HarnessCapabilities {
+	return adapter.HarnessCapabilities{
+		ManagesProviders:    false,
+		ManagesModels:       false,
+		ManagesMCP:          true,
+		ManagesSkills:       true,
+		ManagesInstructions: true,
+		HasBuiltInSub:       true,
+	}
+}
+
 // Detect returns true when ~/.claude exists.
 func (a *Adapter) Detect() bool {
 	_, err := os.Stat(filepath.Join(a.home, ".claude"))
@@ -50,9 +63,8 @@ func (a *Adapter) Detect() bool {
 }
 
 // Render produces the FileSet that applies the canonical bundle to claude-code.
-// settings.json is MERGED into any existing file so user-managed keys
-// settings.json is MERGED into any existing file so user-managed keys
-// (hooks, permissions, env, …) are preserved.
+// Claude Code manages its own subscription and settings.json — harness-sync
+// only manages skills/agents symlinks, CLAUDE.md, and MCP servers.
 func (a *Adapter) Render(b *canonical.Bundle) (*adapter.FileSet, error) {
 	fs := adapter.NewFileSet()
 	base := filepath.Join(a.home, ".claude")
@@ -77,29 +89,6 @@ func (a *Adapter) Render(b *canonical.Bundle) (*adapter.FileSet, error) {
 		Kind:    adapter.RenderedFile,
 		Content: []byte(instructions),
 	})
-
-	// settings.json holds the gateway env vars + model override.
-	// Only emit when a gateway URL is configured.
-	if b.Profile.Gateway.URL != "" {
-		settingsPath := filepath.Join(base, "settings.json")
-		settingsExisting, _ := os.ReadFile(settingsPath)
-		settingsOverlay := map[string]any{
-			"model": b.Profile.Gateway.DefaultModel,
-			"env": map[string]any{
-				"ANTHROPIC_BASE_URL":   b.Profile.Gateway.URL,
-				"ANTHROPIC_AUTH_TOKEN": b.Profile.Gateway.Token,
-			},
-		}
-		settingsMerged, err := common.MergeJSONKeys(settingsExisting, settingsOverlay)
-		if err != nil {
-			return nil, err
-		}
-		fs.Add(adapter.File{
-			Dest:    settingsPath,
-			Kind:    adapter.RenderedFile,
-			Content: settingsMerged,
-		})
-	}
 
 	// Claude Code reads MCP servers from two files on disk:
 	//   * ~/.claude.json (live, written by `claude mcp add`)
@@ -133,6 +122,10 @@ func (a *Adapter) Render(b *canonical.Bundle) (*adapter.FileSet, error) {
 			Dest:    livePath,
 			Kind:    adapter.RenderedFile,
 			Content: liveMerged,
+			// NoMerge: .claude.json is a live state file (Claude Code rewrites it
+			// constantly). The JSON merge above already reconciles at the key level;
+			// a git 3-way merge on top causes perpetual conflicts.
+			NoMerge: true,
 		})
 	}
 

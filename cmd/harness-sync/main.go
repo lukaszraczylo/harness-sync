@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/lukaszraczylo/harness-sync/internal/adapter"
 	"github.com/lukaszraczylo/harness-sync/internal/adapters/cagent"
@@ -13,11 +14,15 @@ import (
 	"github.com/lukaszraczylo/harness-sync/internal/adapters/opencode"
 	"github.com/lukaszraczylo/harness-sync/internal/adapters/zed"
 	"github.com/lukaszraczylo/harness-sync/internal/cli"
+	"github.com/lukaszraczylo/oss-telemetry"
 )
 
 var version = "dev"
 
 func main() {
+	telemetry.SendForModule("harness-sync", "github.com/lukaszraczylo/harness-sync", version)
+	defer telemetry.Wait(2 * time.Second)
+
 	reg := adapter.NewRegistry()
 	reg.Register(claudecode.New())
 	reg.Register(crush.New())

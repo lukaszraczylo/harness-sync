@@ -40,18 +40,51 @@ func DirExists(path string) bool {
 	return DirExistsFS(fsx.OS(), path)
 }
 
-var (
-	blockComment = regexp.MustCompile(`(?s)/\*.*?\*/`)
-	lineComment  = regexp.MustCompile(`(?m)//[^\n]*`)
-)
+var trailingComma = regexp.MustCompile(`,(\s*[}\]])`)
 
-// StripJSONComments is a naive JSONC -> JSON stripper. It does not understand
-// strings containing // or /* and is therefore only safe for hand-edited
-// config files that don't put comment markers inside string literals.
+// StripJSONComments converts JSONC to standard JSON by:
+//   - removing // line comments (only outside string literals)
+//   - removing /* */ block comments (only outside string literals)
+//   - removing trailing commas before } or ]
+//
+// It is string-aware so it won't mangle // inside URL values like "https://...".
 func StripJSONComments(s string) string {
-	s = blockComment.ReplaceAllString(s, "")
-	s = lineComment.ReplaceAllString(s, "")
-	return strings.TrimSpace(s)
+	result := make([]byte, 0, len(s))
+	i, n := 0, len(s)
+	for i < n {
+		switch {
+		case s[i] == '"': // string literal — copy verbatim including escape sequences
+			result = append(result, s[i])
+			i++
+			for i < n {
+				c := s[i]
+				result = append(result, c)
+				i++
+				if c == '\\' && i < n {
+					result = append(result, s[i])
+					i++
+				} else if c == '"' {
+					break
+				}
+			}
+		case i+1 < n && s[i] == '/' && s[i+1] == '*': // /* block comment */
+			i += 2
+			for i+1 < n && (s[i] != '*' || s[i+1] != '/') {
+				i++
+			}
+			i += 2
+		case i+1 < n && s[i] == '/' && s[i+1] == '/': // // line comment
+			i += 2
+			for i < n && s[i] != '\n' {
+				i++
+			}
+		default:
+			result = append(result, s[i])
+			i++
+		}
+	}
+	out := trailingComma.ReplaceAllString(string(result), "$1")
+	return strings.TrimSpace(out)
 }
 
 // ImportMCPFromJSONFileFS reads a JSON file from fs and extracts an MCP server

@@ -16,7 +16,13 @@ import (
 func bundle() *canonical.Bundle {
 	return &canonical.Bundle{
 		Profile: canonical.Profile{
-			Gateway: canonical.Gateway{DefaultModel: "anthropic/claude-sonnet-4-6"},
+			Gateway: canonical.Gateway{
+				URL:          "https://llmgw.example.com/v1",
+				DefaultModel: "claude-sonnet-4-6",
+			},
+			Models: []canonical.Model{
+				{ID: "claude-sonnet-4-6", Alias: "sonnet"},
+			},
 		},
 		MCP: canonical.MCPRegistry{Servers: []canonical.MCPServer{
 			{Name: "filepuff", Command: "/bin/filepuff", Args: []string{"--serve"}},
@@ -40,18 +46,25 @@ func TestZedRenderProducesExpectedTargets(t *testing.T) {
 	var parsed map[string]any
 	require.NoError(t, json.Unmarshal(seen[cfgDest].Content, &parsed))
 
-	// Agent default_model is an object.
+	// agent.default_model routes through harness-sync-gateway (openai_compatible provider).
 	agent := parsed["agent"].(map[string]any)
 	dm := agent["default_model"].(map[string]any)
-	assert.Equal(t, "anthropic", dm["provider"])
+	assert.Equal(t, "harness-sync-gateway", dm["provider"])
 	assert.Equal(t, "claude-sonnet-4-6", dm["model"])
 
-	// context_servers.
+	// language_models.openai_compatible has our named gateway entry.
+	lm := parsed["language_models"].(map[string]any)
+	oc := lm["openai_compatible"].(map[string]any)
+	gw := oc["harness-sync-gateway"].(map[string]any)
+	assert.Equal(t, "https://llmgw.example.com/v1", gw["api_url"])
+
+	// context_servers — no "enabled" or "source" (Zed serde bug workaround).
 	cs := parsed["context_servers"].(map[string]any)
 	fp := cs["filepuff"].(map[string]any)
-	assert.Equal(t, true, fp["enabled"])
-	assert.Equal(t, "custom", fp["source"])
 	assert.Equal(t, "/bin/filepuff", fp["command"])
+	assert.Equal(t, []any{"--serve"}, fp["args"])
+	assert.NotContains(t, fp, "enabled")
+	assert.NotContains(t, fp, "source")
 }
 
 func TestZedRenderMergesExistingKeys(t *testing.T) {
@@ -111,7 +124,7 @@ func TestZedRenderNoMCP(t *testing.T) {
 	assert.Empty(t, cs)
 }
 
-func TestZedRenderEmitsLanguageModelsOpenAI(t *testing.T) {
+func TestZedRenderEmitsLanguageModelsOpenAICompatible(t *testing.T) {
 	home := t.TempDir()
 	ad := New(WithHome(home))
 	b := &canonical.Bundle{
@@ -131,15 +144,20 @@ func TestZedRenderEmitsLanguageModelsOpenAI(t *testing.T) {
 
 	lm, ok := parsed["language_models"].(map[string]any)
 	require.True(t, ok, "language_models must be present")
-	oai, ok := lm["openai"].(map[string]any)
-	require.True(t, ok, "language_models.openai must be present")
-	assert.Equal(t, "https://gw", oai["api_url"])
-	avail, ok := oai["available_models"].([]any)
+	oc, ok := lm["openai_compatible"].(map[string]any)
+	require.True(t, ok, "language_models.openai_compatible must be present")
+	gw, ok := oc["harness-sync-gateway"].(map[string]any)
+	require.True(t, ok, "openai_compatible.harness-sync-gateway must be present")
+	assert.Equal(t, "https://gw", gw["api_url"])
+	avail, ok := gw["available_models"].([]any)
 	require.True(t, ok)
 	require.Len(t, avail, 1)
 	m0 := avail[0].(map[string]any)
 	assert.Equal(t, "claude-sonnet-4-6", m0["name"])
 	assert.Equal(t, "sonnet", m0["display_name"])
+	caps, ok := m0["capabilities"].(map[string]any)
+	require.True(t, ok, "model must have capabilities")
+	assert.Equal(t, true, caps["tools"])
 }
 
 func TestZedImport(t *testing.T) {
@@ -180,17 +198,4 @@ func TestZedDetect(t *testing.T) {
 	home := t.TempDir()
 	ad := New(WithHome(home))
 	assert.False(t, ad.Detect())
-}
-
-func TestSplitProviderModel(t *testing.T) {
-	t.Run("with slash", func(t *testing.T) {
-		p, m := splitProviderModel("anthropic/claude-sonnet-4-6")
-		assert.Equal(t, "anthropic", p)
-		assert.Equal(t, "claude-sonnet-4-6", m)
-	})
-	t.Run("no slash", func(t *testing.T) {
-		p, m := splitProviderModel("claude-sonnet")
-		assert.Equal(t, "anthropic", p)
-		assert.Equal(t, "claude-sonnet", m)
-	})
 }

@@ -6,8 +6,12 @@ type File struct {
 	Dest          string
 	SymlinkTarget string
 	Content       []byte
-	Mode          os.FileMode
 	Kind          Kind
+	Mode          os.FileMode
+	// NoMerge skips the 3-way git merge and always writes the rendered content.
+	// Use for files the adapter partially manages via JSON/YAML merge (e.g. live
+	// state files where the adapter already reconciles at the key level).
+	NoMerge bool
 }
 
 type FileSet struct {

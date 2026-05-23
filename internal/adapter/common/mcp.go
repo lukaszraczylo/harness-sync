@@ -12,7 +12,7 @@ const (
 	MCPCrushStyle
 	// MCPOpencodeStyle: kilo + opencode shape — type: local|remote, command as []string.
 	MCPOpencodeStyle
-	// MCPZedStyle: zed context_servers — {enabled, source, command, args} or {enabled, url}.
+	// MCPZedStyle: zed context_servers — {enabled, command, args} or {enabled, url}.
 	MCPZedStyle
 )
 
@@ -94,11 +94,12 @@ func mcpEntry(s canonical.MCPServer, style MCPStyle) map[string]any {
 		}
 		e["enabled"] = true
 	case MCPZedStyle:
-		e["enabled"] = true
+		// Do NOT emit "enabled" — Zed 1.3.x has a serde flatten+deny_unknown_fields
+		// bug where outer-struct fields bleed into the untagged enum variants and
+		// fail all of them. Omitting "enabled" defaults to true.
 		if s.URL != "" {
 			e["url"] = s.URL
 		} else {
-			e["source"] = "custom"
 			if s.Command != "" {
 				e["command"] = s.Command
 			}

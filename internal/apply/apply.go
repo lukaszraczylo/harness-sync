@@ -102,7 +102,7 @@ func handleRendered(opt Options, adapterName string, f adapter.File, rep *Report
 		return writeState(opt, sp, f.Content)
 	}
 
-	if opt.Force || len(base) == 0 || string(current) == string(base) {
+	if opt.Force || f.NoMerge || len(base) == 0 || string(current) == string(base) {
 		if opt.DryRun {
 			rep.Actions = append(rep.Actions, Action{Adapter: adapterName, Dest: f.Dest, Kind: "wrote", Note: "would write"})
 			return nil

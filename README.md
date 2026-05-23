@@ -131,15 +131,35 @@ harness's official docs before the adapter was written. Wrong key names
 silently produce configs the harness can't parse — that's a bug class
 harness-sync goes out of its way to avoid.
 
-| Harness | Native config | MCP key | Model selector | Instructions | Symlinked |
-|---|---|---|---|---|---|
-| **claude-code** | `~/.claude.json` (merged, primary) + `~/.claude/mcp_servers.json` | `mcpServers` (`type: stdio`/`http`) | `env.ANTHROPIC_DEFAULT_MODEL` | `~/.claude/CLAUDE.md` | `skills/`, `agents/` |
-| **crush** | `~/.config/crush/crush.json` (merged) | `mcp` (type: stdio\|http\|sse) | `default_model` | auto-read `AGENTS.md` | `skills/` |
-| **kilo** | `~/.config/kilo/kilo.json` (merged) | `mcp` (type: local\|remote) | `model` + `small_model` | `instructions` array | `agent/` |
-| **opencode** | `~/.config/opencode/opencode.jsonc` (merged) | `mcp` (type: local\|remote) | `model` | `AGENTS.md` | — |
-| **goose** | `~/.config/goose/config.yaml` (merged) | n/a — `extensions` map (type: stdio) | `GOOSE_PROVIDER` + `GOOSE_MODEL` | env via `extensions.tom` | — |
-| **cagent** | `~/.config/cagent/default.yaml` (starter) | `mcps` | per-agent `model:` | inline `instruction:` | — |
-| **zed** | `~/.config/zed/settings.json` (merged) | `context_servers` (source: custom) | `agent.default_model.{provider,model}` | `~/.config/zed/rules/` | — |
+### Native config format
+
+| Harness | Native config | MCP key | Provider / model config | Skills path |
+|---|---|---|---|---|
+| **claude-code** | `~/.claude.json` (merged) + `~/.claude/mcp_servers.json` | `mcpServers` (`type: stdio`/`http`) | own subscription — not managed | `~/.claude/skills/` |
+| **crush** | `~/.config/crush/crush.json` (merged) | `mcp` (`type: stdio`/`http`/`sse`) | `providers` map + `default_model` | `~/.config/crush/skills/` |
+| **kilo** | `~/.config/kilo/kilo.json` (merged) | `mcp` (`type: local`/`remote`) | `provider` map + `model` + `small_model` | `~/.kilo/skills/` |
+| **opencode** | `~/.config/opencode/opencode.jsonc` (merged) | `mcp` (`type: local`/`remote`) | `provider` map + `model` | `~/.config/opencode/skills/` |
+| **goose** | `~/.config/goose/config.yaml` (merged) + `custom_providers/<name>.json` | `extensions` map (`type: stdio`) | `GOOSE_PROVIDER` + `GOOSE_MODEL` | `~/.agents/skills/` |
+| **cagent** | `~/.config/cagent/default.yaml` (starter) | `mcps` | `providers` map + per-agent `model:` | — |
+| **zed** | `~/.config/zed/settings.json` (merged) | `context_servers` | `language_models.openai.{api_url, available_models}` + `agent.default_model` | — |
+
+### Capability matrix
+
+What harness-sync writes per harness. Harnesses with a **built-in subscription** receive MCP + skills + instructions only — provider/model/endpoint config is skipped to avoid conflicting with the harness's own auth.
+
+Skills paths are grounded in each harness's official documentation (kilo.ai, opencode.ai, goose-docs.ai). kilo, opencode, and goose also scan `~/.claude/skills/` as a compatibility path, so the claude-code symlink passively reaches them already.
+
+| Harness | Built-in sub | Providers | Models | MCP | Skills | Instructions |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|
+| **claude-code** | ✓ | — | — | ✓ | ✓ | ✓ |
+| **crush** | — | ✓ | ✓ | ✓ | ✓ | — |
+| **kilo** | — | ✓ | ✓ | ✓ | ✓ | — |
+| **opencode** | — | ✓ | ✓ | ✓ | ✓ | ✓ |
+| **goose** | — | ✓ | ✓ | ✓ | ✓ | — |
+| **cagent** | — | ✓ | ✓ | ✓ | — | ✓ |
+| **zed** | — | ✓ | ✓ | ✓ | — | — |
+
+The matrix is machine-readable via `adapter.Capabilities()` — every adapter implements `HarnessCapabilities` so tooling can inspect what will change before running `apply`.
 
 > **Merged, not replaced.** For harnesses with user-managed config keys (every one
 > except cagent), harness-sync reads the existing file, overlays only the keys

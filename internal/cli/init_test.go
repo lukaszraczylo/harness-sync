@@ -23,6 +23,9 @@ func (i *importableAdapter) Render(_ *canonical.Bundle) (*adapter.FileSet, error
 	return adapter.NewFileSet(), nil
 }
 func (i *importableAdapter) Import(_ string) (*adapter.ImportResult, error) { return i.res, nil }
+func (i *importableAdapter) Capabilities() adapter.HarnessCapabilities {
+	return adapter.HarnessCapabilities{ManagesMCP: true}
+}
 
 func TestInitImportWritesCanonical(t *testing.T) {
 	root := t.TempDir()

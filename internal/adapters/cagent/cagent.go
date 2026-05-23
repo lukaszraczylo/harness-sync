@@ -47,6 +47,18 @@ func defaultHome() string {
 // Name returns the harness identifier.
 func (a *Adapter) Name() string { return name }
 
+// Capabilities declares what cagent harness-sync manages.
+func (a *Adapter) Capabilities() adapter.HarnessCapabilities {
+	return adapter.HarnessCapabilities{
+		ManagesProviders:    true,
+		ManagesModels:       true,
+		ManagesMCP:          true,
+		ManagesSkills:       false,
+		ManagesInstructions: true,
+		HasBuiltInSub:       false,
+	}
+}
+
 // Detect returns true when ~/.config/cagent/ exists.
 func (a *Adapter) Detect() bool {
 	_, err := os.Stat(filepath.Join(a.home, ".config", "cagent"))

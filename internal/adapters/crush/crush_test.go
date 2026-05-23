@@ -53,8 +53,8 @@ func TestCrushRenderProducesExpectedTargets(t *testing.T) {
 	assert.Contains(t, models, "large")
 	assert.Contains(t, models, "small")
 	assert.Contains(t, models, "title")
-	// Must NOT write "default_model" or "mcpServers".
-	assert.NotContains(t, parsed, "default_model")
+	// Must write "default_model" (prevents Bedrock fallback) but NOT "mcpServers".
+	assert.Contains(t, parsed, "default_model")
 	assert.NotContains(t, parsed, "mcpServers")
 }
 

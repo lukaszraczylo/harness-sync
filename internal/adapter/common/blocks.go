@@ -10,6 +10,9 @@ import (
 
 const gatewayProviderID = "harness-sync-gateway"
 
+// GatewayProviderID is the canonical provider key used across all adapters.
+const GatewayProviderID = gatewayProviderID
+
 // ProviderEntry is a generic provider record. Adapters may massage further.
 type ProviderEntry = map[string]any
 
@@ -160,7 +163,6 @@ func ProvidersAsMap(p *canonical.Profile) map[string]any {
 	}
 	return out
 }
-
 
 // KiloModelString returns the "providerID/modelID" string used by kilo/opencode.
 func KiloModelString(p *canonical.Profile) string {

@@ -34,6 +34,7 @@ func (f *fakeAdapter) Name() string                                 { return f.n
 func (f *fakeAdapter) Detect() bool                                 { return f.detect }
 func (f *fakeAdapter) Render(_ *canonical.Bundle) (*FileSet, error) { return NewFileSet(), nil }
 func (f *fakeAdapter) Import(_ string) (*ImportResult, error)       { return &ImportResult{}, nil }
+func (f *fakeAdapter) Capabilities() HarnessCapabilities            { return HarnessCapabilities{} }
 
 func TestRegistry(t *testing.T) {
 	r := NewRegistry()

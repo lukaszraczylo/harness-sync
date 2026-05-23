@@ -26,6 +26,9 @@ func (f *failingAdapter) Render(_ *canonical.Bundle) (*adapter.FileSet, error) {
 func (f *failingAdapter) Import(_ string) (*adapter.ImportResult, error) {
 	return &adapter.ImportResult{}, nil
 }
+func (f *failingAdapter) Capabilities() adapter.HarnessCapabilities {
+	return adapter.HarnessCapabilities{}
+}
 
 type stubAdapter struct {
 	name  string
@@ -43,6 +46,9 @@ func (s *stubAdapter) Render(_ *canonical.Bundle) (*adapter.FileSet, error) {
 		fs.Add(f)
 	}
 	return fs, nil
+}
+func (s *stubAdapter) Capabilities() adapter.HarnessCapabilities {
+	return adapter.HarnessCapabilities{}
 }
 
 // ---------------------------------------------------------------------------

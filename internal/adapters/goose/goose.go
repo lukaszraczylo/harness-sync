@@ -50,6 +50,18 @@ func defaultHome() string {
 // Name returns the harness identifier.
 func (a *Adapter) Name() string { return name }
 
+// Capabilities declares what goose harness-sync manages.
+func (a *Adapter) Capabilities() adapter.HarnessCapabilities {
+	return adapter.HarnessCapabilities{
+		ManagesProviders:    true,
+		ManagesModels:       true,
+		ManagesMCP:          true,
+		ManagesSkills:       true,
+		ManagesInstructions: false,
+		HasBuiltInSub:       false,
+	}
+}
+
 // Detect returns true when ~/.config/goose/ exists.
 func (a *Adapter) Detect() bool {
 	_, err := os.Stat(filepath.Join(a.home, ".config", "goose"))
@@ -64,6 +76,13 @@ func (a *Adapter) Detect() bool {
 func (a *Adapter) Render(b *canonical.Bundle) (*adapter.FileSet, error) {
 	fs := adapter.NewFileSet()
 	cfgPath := filepath.Join(a.home, ".config", "goose", "config.yaml")
+
+	// goose reads skills from ~/.agents/skills/<name>/SKILL.md (open Agent Skills spec)
+	fs.Add(adapter.File{
+		Dest:          filepath.Join(a.home, ".agents", "skills"),
+		Kind:          adapter.SymlinkDir,
+		SymlinkTarget: filepath.Join(b.Root, "skills"),
+	})
 
 	existing, _ := os.ReadFile(cfgPath)
 

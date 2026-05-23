@@ -94,7 +94,9 @@ func TestRenderMergesLiveClaudeJSON(t *testing.T) {
 	assert.Equal(t, "stdio", fp["type"])
 }
 
-func TestClaudeCodeRenderSetsAnthropicBaseURLInSettings(t *testing.T) {
+func TestClaudeCodeRenderNeverWritesSettings(t *testing.T) {
+	// Claude Code uses its own Anthropic Max subscription.
+	// harness-sync must NEVER write settings.json even when a gateway is configured.
 	home := t.TempDir()
 	ad := New(WithHome(home))
 	b := &canonical.Bundle{
@@ -113,16 +115,7 @@ func TestClaudeCodeRenderSetsAnthropicBaseURLInSettings(t *testing.T) {
 	fs.ForEach(func(f adapter.File) { seen[f.Dest] = f })
 
 	settingsDest := filepath.Join(home, ".claude", "settings.json")
-	require.Contains(t, seen, settingsDest)
-	assert.Equal(t, adapter.RenderedFile, seen[settingsDest].Kind)
-
-	var parsed map[string]any
-	require.NoError(t, json.Unmarshal(seen[settingsDest].Content, &parsed))
-	assert.Equal(t, "claude-sonnet-4-6", parsed["model"])
-	env, ok := parsed["env"].(map[string]any)
-	require.True(t, ok, "env must be a map")
-	assert.Equal(t, "https://gw", env["ANTHROPIC_BASE_URL"])
-	assert.Equal(t, "tok", env["ANTHROPIC_AUTH_TOKEN"])
+	assert.NotContains(t, seen, settingsDest, "settings.json must never be written — claude-code has its own subscription")
 }
 
 func TestClaudeCodeRenderNoGatewayNoSettings(t *testing.T) {

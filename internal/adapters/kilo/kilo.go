@@ -43,6 +43,18 @@ func defaultHome() string {
 // Name returns the harness identifier.
 func (a *Adapter) Name() string { return name }
 
+// Capabilities declares what kilo harness-sync manages.
+func (a *Adapter) Capabilities() adapter.HarnessCapabilities {
+	return adapter.HarnessCapabilities{
+		ManagesProviders:    true,
+		ManagesModels:       true,
+		ManagesMCP:          true,
+		ManagesSkills:       true,
+		ManagesInstructions: false,
+		HasBuiltInSub:       false,
+	}
+}
+
 // Detect returns true when ~/.config/kilo exists.
 func (a *Adapter) Detect() bool {
 	_, err := os.Stat(filepath.Join(a.home, ".config", "kilo"))
@@ -62,6 +74,12 @@ func (a *Adapter) Render(b *canonical.Bundle) (*adapter.FileSet, error) {
 		Dest:          filepath.Join(base, "agent"),
 		Kind:          adapter.SymlinkDir,
 		SymlinkTarget: filepath.Join(b.Root, "agents"),
+	})
+	// kilo reads skills from ~/.kilo/skills/<name>/SKILL.md
+	fs.Add(adapter.File{
+		Dest:          filepath.Join(a.home, ".kilo", "skills"),
+		Kind:          adapter.SymlinkDir,
+		SymlinkTarget: filepath.Join(b.Root, "skills"),
 	})
 
 	cfgPath := filepath.Join(base, "kilo.json")

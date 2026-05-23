@@ -23,9 +23,22 @@ func (k Kind) String() string {
 	return "unknown"
 }
 
+// HarnessCapabilities declares what an adapter manages.
+// HasBuiltInSub means the harness has its own AI subscription (e.g. Claude Max)
+// and harness-sync should not write provider/model/endpoint config for it.
+type HarnessCapabilities struct {
+	ManagesProviders    bool // writes provider/gateway endpoint config
+	ManagesModels       bool // writes model selection config
+	ManagesMCP          bool // writes MCP server config
+	ManagesSkills       bool // writes skills symlink or equivalent
+	ManagesInstructions bool // writes instructions file (CLAUDE.md, AGENTS.md, etc.)
+	HasBuiltInSub       bool // has its own subscription; provider/model config is skipped
+}
+
 type Adapter interface {
 	Name() string
 	Detect() bool
+	Capabilities() HarnessCapabilities
 	Render(b *canonical.Bundle) (*FileSet, error)
 	Import(home string) (*ImportResult, error)
 }

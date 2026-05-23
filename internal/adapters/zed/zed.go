@@ -1,14 +1,14 @@
 // Package zed is the Zed editor harness adapter.
 //
 // Zed uses ~/.config/zed/settings.json with many user-managed keys.
-// We MERGE only "agent" and "context_servers"; all other keys are preserved.
-// MCP servers become context_servers entries with source: "custom".
+// harness-sync manages: context_servers (MCP), language_models.openai, agent.default_model.
+// All other keys are preserved via JSON merge.
 package zed
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/lukaszraczylo/harness-sync/internal/adapter"
 	"github.com/lukaszraczylo/harness-sync/internal/adapter/common"
@@ -46,6 +46,19 @@ func defaultHome() string {
 // Name returns the harness identifier.
 func (a *Adapter) Name() string { return name }
 
+// Capabilities declares what zed harness-sync manages.
+// Zed does not have a built-in subscription — it routes through the configured gateway.
+func (a *Adapter) Capabilities() adapter.HarnessCapabilities {
+	return adapter.HarnessCapabilities{
+		ManagesProviders:    true,
+		ManagesModels:       true,
+		ManagesMCP:          true,
+		ManagesSkills:       false,
+		ManagesInstructions: false,
+		HasBuiltInSub:       false,
+	}
+}
+
 // Detect returns true when ~/.config/zed/ exists.
 func (a *Adapter) Detect() bool {
 	_, err := os.Stat(filepath.Join(a.home, ".config", "zed"))
@@ -54,7 +67,7 @@ func (a *Adapter) Detect() bool {
 
 // Render produces the FileSet that applies the canonical bundle to Zed.
 // settings.json is MERGED to preserve all user-managed Zed configuration.
-// Only "agent" (default_model) and "context_servers" (MCP) are overlaid.
+// Manages: context_servers (MCP), language_models.openai, agent.default_model.
 func (a *Adapter) Render(b *canonical.Bundle) (*adapter.FileSet, error) {
 	fs := adapter.NewFileSet()
 	cfgPath := filepath.Join(a.home, ".config", "zed", "settings.json")
@@ -64,18 +77,11 @@ func (a *Adapter) Render(b *canonical.Bundle) (*adapter.FileSet, error) {
 		"context_servers": common.BuildMCPMapStyled(&b.MCP, common.MCPZedStyle),
 	}
 
-	if dm := b.Profile.Gateway.DefaultModel; dm != "" {
-		provider, model := splitProviderModel(dm)
-		overlay["agent"] = map[string]any{
-			"default_model": map[string]any{
-				"provider": provider,
-				"model":    model,
-			},
-		}
-	}
-
-	if lm := common.ZedLanguageModels(&b.Profile); len(lm) > 0 {
-		overlay["language_models"] = lm
+	if b.Profile.Gateway.URL != "" {
+		overlay["language_models"] = zedLanguageModels(&b.Profile)
+		overlay["agent"] = zedAgentBlock(existing, &b.Profile)
+	} else {
+		overlay["language_models"] = nil
 	}
 
 	merged, err := common.MergeJSONKeys(existing, overlay)
@@ -86,21 +92,69 @@ func (a *Adapter) Render(b *canonical.Bundle) (*adapter.FileSet, error) {
 		Dest:    cfgPath,
 		Kind:    adapter.RenderedFile,
 		Content: merged,
+		// NoMerge: Zed settings.json is JSONC (trailing commas, comments). The
+		// JSON merge above already reconciles at the key level; git 3-way merge
+		// on JSONC causes spurious conflicts on whitespace/comment differences.
+		NoMerge: true,
 	})
 
 	return fs, nil
 }
 
+// zedLanguageModels builds language_models.openai_compatible from the profile
+// gateway. Each named entry becomes its own provider in Zed's Agent panel.
+// API key is read by Zed from env var HARNESS_SYNC_GATEWAY_API_KEY at runtime.
+func zedLanguageModels(p *canonical.Profile) map[string]any {
+	entry := map[string]any{"api_url": p.Gateway.URL}
+	if len(p.Models) > 0 {
+		models := make([]map[string]any, 0, len(p.Models))
+		for _, m := range p.Models {
+			me := map[string]any{
+				"name":       m.ID,
+				"max_tokens": 200000,
+				"capabilities": map[string]any{
+					"tools":               true,
+					"images":              false,
+					"parallel_tool_calls": false,
+				},
+			}
+			if m.Alias != "" {
+				me["display_name"] = m.Alias
+			}
+			models = append(models, me)
+		}
+		entry["available_models"] = models
+	}
+	return map[string]any{
+		"openai_compatible": map[string]any{
+			common.GatewayProviderID: entry,
+		},
+	}
+}
+
+// zedAgentBlock merges default_model into the existing agent block,
+// preserving all other user-managed agent settings.
+func zedAgentBlock(existing []byte, p *canonical.Profile) map[string]any {
+	base := map[string]any{}
+	if len(existing) > 0 {
+		var raw map[string]any
+		clean := common.StripJSONComments(string(existing))
+		if json.Unmarshal([]byte(clean), &raw) == nil {
+			if ag, ok := raw["agent"].(map[string]any); ok {
+				base = ag
+			}
+		}
+	}
+	if p.Gateway.DefaultModel != "" {
+		base["default_model"] = map[string]any{
+			"provider": common.GatewayProviderID,
+			"model":    p.Gateway.DefaultModel,
+		}
+	}
+	return base
+}
+
 // Import reads context_servers from Zed settings.json back to MCP servers.
 func (a *Adapter) Import(home string) (*adapter.ImportResult, error) {
 	return importFrom(home)
-}
-
-// splitProviderModel splits "provider/model" at the first slash.
-// If no slash, provider is "anthropic".
-func splitProviderModel(s string) (string, string) {
-	if idx := strings.IndexByte(s, '/'); idx >= 0 {
-		return s[:idx], s[idx+1:]
-	}
-	return "anthropic", s
 }

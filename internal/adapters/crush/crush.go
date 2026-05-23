@@ -41,6 +41,18 @@ func defaultHome() string {
 // Name returns the harness identifier.
 func (a *Adapter) Name() string { return name }
 
+// Capabilities declares what crush harness-sync manages.
+func (a *Adapter) Capabilities() adapter.HarnessCapabilities {
+	return adapter.HarnessCapabilities{
+		ManagesProviders:    true,
+		ManagesModels:       true,
+		ManagesMCP:          true,
+		ManagesSkills:       true,
+		ManagesInstructions: false,
+		HasBuiltInSub:       false,
+	}
+}
+
 // Detect returns true when ~/.config/crush exists.
 func (a *Adapter) Detect() bool {
 	_, err := os.Stat(filepath.Join(a.home, ".config", "crush"))
@@ -69,6 +81,7 @@ func (a *Adapter) Render(b *canonical.Bundle) (*adapter.FileSet, error) {
 	if roleModels := common.CrushRoleModels(&b.Profile); len(roleModels) > 0 {
 		overlay["models"] = roleModels
 	}
+	overlay["default_model"] = b.Profile.Gateway.DefaultModel
 	if mcp := common.BuildMCPMapStyled(&b.MCP, common.MCPCrushStyle); len(mcp) > 0 {
 		overlay["mcp"] = mcp
 	}

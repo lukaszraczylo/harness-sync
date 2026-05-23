@@ -31,6 +31,9 @@ func (r *renderingAdapter) Render(_ *canonical.Bundle) (*adapter.FileSet, error)
 	}
 	return fs, nil
 }
+func (r *renderingAdapter) Capabilities() adapter.HarnessCapabilities {
+	return adapter.HarnessCapabilities{}
+}
 
 func TestShowPrintsTargets(t *testing.T) {
 	root := t.TempDir()

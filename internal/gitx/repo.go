@@ -50,7 +50,10 @@ func (r *Repo) Add(paths ...string) error {
 }
 
 func (r *Repo) Commit(msg string) error {
-	_, err := r.run("commit", "-q", "-m", msg)
+	// --no-verify: harness-sync makes internal state-tracking commits in the
+	// canonical repo; user-configured hooks (secret scanners, linters) must not
+	// block them — those hooks belong to the harness-sync source repo, not here.
+	_, err := r.run("commit", "-q", "--no-verify", "-m", msg)
 	return err
 }
 
