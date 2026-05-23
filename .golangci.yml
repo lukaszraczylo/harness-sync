@@ -1,0 +1,43 @@
+version: "2"
+
+run:
+  timeout: 5m
+  go: '1.25'
+
+linters:
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - gocyclo
+    - misspell
+
+formatters:
+  enable:
+    - gofmt
+
+linters-settings:
+  gocyclo:
+    min-complexity: 15
+  errcheck:
+    check-blank: true
+  govet:
+    enable-all: true
+  staticcheck:
+    checks: ["all"]
+
+issues:
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - gocyclo
+        - errcheck
+        - gosec
+
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+output:
+  sort-results: true
