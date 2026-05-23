@@ -68,7 +68,12 @@ func (r *Repo) IsRepo() bool {
 	return err == nil
 }
 
+// Revert undoes the last N commits with `git revert --no-edit HEAD~N..HEAD`.
+// n must be >= 1.
 func (r *Repo) Revert(n int) error {
-	_, err := r.run("revert", "--no-edit", fmt.Sprintf("HEAD~%d..HEAD", n-1))
+	if n < 1 {
+		return fmt.Errorf("revert: n must be >= 1, got %d", n)
+	}
+	_, err := r.run("revert", "--no-edit", fmt.Sprintf("HEAD~%d..HEAD", n))
 	return err
 }

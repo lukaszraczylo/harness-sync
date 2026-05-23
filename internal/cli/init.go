@@ -49,13 +49,25 @@ func NewInit(reg *adapter.Registry) *cobra.Command {
 			var picked []string
 			switch {
 			case len(from) > 0:
-				picked = from
+				for _, f := range from {
+					if f != "" {
+						picked = append(picked, f)
+					}
+				}
 			case noPrompt:
 				picked = candidates
 			default:
 				picked, err = ui.MultiSelect("Import from which harnesses?", candidates)
 				if err != nil {
 					return err
+				}
+			}
+			if len(picked) == 0 {
+				return fmt.Errorf("no harnesses selected; rerun with --no-prompt or --from <name,name>")
+			}
+			for _, name := range picked {
+				if _, ok := reg.Get(name); !ok {
+					return fmt.Errorf("unknown adapter %q (try `harness-sync adapter list`)", name)
 				}
 			}
 			return runImport(cmd, reg, r, home, picked)
@@ -134,7 +146,10 @@ func runImport(cmd *cobra.Command, reg *adapter.Registry, root, home string, pic
 	if err := repo.Commit(fmt.Sprintf("import from %s", strings.Join(picked, ", "))); err != nil {
 		return err
 	}
-	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "imported from %v into %s\n", picked, root)
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(),
+		"imported from %v into %s\n  skills:       %d\n  agents:       %d\n  mcp servers:  %d\n  instructions: %d source(s)\n",
+		picked, root, len(bundle.Skills), len(bundle.Agents), len(bundle.MCP.Servers), len(instructions),
+	)
 	return nil
 }
 
@@ -183,7 +198,11 @@ func writeCanonical(root string, b *canonical.Bundle, picked []string) error {
 	}
 
 	for _, s := range b.Skills {
-		path := filepath.Join(root, "skills", s.Name, "SKILL.md")
+		rel := s.Path
+		if rel == "" {
+			rel = filepath.Join(safeFilename(s.Name), "SKILL.md")
+		}
+		path := filepath.Join(root, "skills", rel)
 		if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 			return err
 		}
@@ -192,7 +211,14 @@ func writeCanonical(root string, b *canonical.Bundle, picked []string) error {
 		}
 	}
 	for _, a := range b.Agents {
-		path := filepath.Join(root, "agents", a.Name+".md")
+		rel := a.Path
+		if rel == "" {
+			rel = safeFilename(a.Name) + ".md"
+		}
+		path := filepath.Join(root, "agents", rel)
+		if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+			return err
+		}
 		if err := os.WriteFile(path, []byte(a.Body), 0o600); err != nil {
 			return err
 		}
@@ -204,4 +230,11 @@ func writeCanonical(root string, b *canonical.Bundle, picked []string) error {
 		}
 	}
 	return nil
+}
+
+// safeFilename strips path separators and other characters that would break
+// when used as a basename.
+func safeFilename(s string) string {
+	r := strings.NewReplacer("/", "-", "\\", "-", ":", "-", "\x00", "")
+	return r.Replace(s)
 }

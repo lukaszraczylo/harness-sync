@@ -44,19 +44,28 @@ func MultiSelect(title string, choices []string, opts ...Option) ([]string, erro
 		}
 		return o.nonInteractive, nil
 	}
-	var picked []string
+	// Pre-select every choice. Users deselect what they don't want; hitting
+	// enter without toggling thus accepts all (the common case) instead of
+	// silently producing an empty result.
+	picked := make([]string, len(choices))
+	copy(picked, choices)
+
 	opts2 := make([]huh.Option[string], 0, len(choices))
 	for _, c := range choices {
-		opts2 = append(opts2, huh.NewOption(c, c))
+		opts2 = append(opts2, huh.NewOption(c, c).Selected(true))
 	}
 	form := huh.NewForm(huh.NewGroup(
 		huh.NewMultiSelect[string]().
 			Title(title).
+			Description("space to toggle · enter to confirm · all pre-selected").
 			Options(opts2...).
 			Value(&picked),
 	))
 	if err := form.Run(); err != nil {
 		return nil, err
+	}
+	if len(picked) == 0 {
+		return nil, fmt.Errorf("no items selected")
 	}
 	return picked, nil
 }
