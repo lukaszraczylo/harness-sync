@@ -124,6 +124,7 @@ func zedLanguageModels(p *canonical.Profile) map[string]any {
 					"tools":               true,
 					"images":              false,
 					"parallel_tool_calls": false,
+					"prompt_cache_key":    false,
 				},
 			}
 			if m.Alias != "" {

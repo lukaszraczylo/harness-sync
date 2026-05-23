@@ -152,6 +152,7 @@ func TestZedRenderEmitsLanguageModelsOpenAICompatible(t *testing.T) {
 	caps, ok := m0["capabilities"].(map[string]any)
 	require.True(t, ok, "model must have capabilities")
 	assert.Equal(t, true, caps["tools"])
+	assert.Equal(t, false, caps["prompt_cache_key"])
 }
 
 func TestZedImport(t *testing.T) {
