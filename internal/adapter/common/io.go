@@ -6,12 +6,15 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/spf13/afero"
+
 	"github.com/lukaszraczylo/harness-sync/internal/canonical"
+	"github.com/lukaszraczylo/harness-sync/internal/fsx"
 )
 
-// ReadIfExists returns the file body or empty string when missing.
-func ReadIfExists(path string) (string, error) {
-	b, err := os.ReadFile(path)
+// ReadIfExistsFS returns the file body or empty string when missing, using fs.
+func ReadIfExistsFS(fs fsx.FS, path string) (string, error) {
+	b, err := afero.ReadFile(fs, path)
 	if os.IsNotExist(err) {
 		return "", nil
 	}
@@ -21,10 +24,20 @@ func ReadIfExists(path string) (string, error) {
 	return string(b), nil
 }
 
+// ReadIfExists returns the file body or empty string when missing.
+func ReadIfExists(path string) (string, error) {
+	return ReadIfExistsFS(fsx.OS(), path)
+}
+
+// DirExistsFS reports whether path is an existing directory on fs.
+func DirExistsFS(fs fsx.FS, path string) bool {
+	info, err := fs.Stat(path)
+	return err == nil && info.IsDir()
+}
+
 // DirExists reports whether path is an existing directory.
 func DirExists(path string) bool {
-	info, err := os.Stat(path)
-	return err == nil && info.IsDir()
+	return DirExistsFS(fsx.OS(), path)
 }
 
 var (
@@ -41,11 +54,10 @@ func StripJSONComments(s string) string {
 	return strings.TrimSpace(s)
 }
 
-// ImportMCPFromJSONFile reads a JSON file and extracts an MCP server map
-// nested under the given top-level key (e.g. "mcpServers", "mcp").
-// Returns nil with no error when the file is missing.
-func ImportMCPFromJSONFile(path, key string) ([]canonical.MCPServer, error) {
-	body, err := os.ReadFile(path)
+// ImportMCPFromJSONFileFS reads a JSON file from fs and extracts an MCP server
+// map nested under the given top-level key. Returns nil with no error when missing.
+func ImportMCPFromJSONFileFS(fs fsx.FS, path, key string) ([]canonical.MCPServer, error) {
+	body, err := afero.ReadFile(fs, path)
 	if os.IsNotExist(err) {
 		return nil, nil
 	}
@@ -53,6 +65,13 @@ func ImportMCPFromJSONFile(path, key string) ([]canonical.MCPServer, error) {
 		return nil, err
 	}
 	return ParseMCPFromJSON(body, key)
+}
+
+// ImportMCPFromJSONFile reads a JSON file and extracts an MCP server map
+// nested under the given top-level key (e.g. "mcpServers", "mcp").
+// Returns nil with no error when the file is missing.
+func ImportMCPFromJSONFile(path, key string) ([]canonical.MCPServer, error) {
+	return ImportMCPFromJSONFileFS(fsx.OS(), path, key)
 }
 
 // ParseMCPFromJSON extracts MCP servers from a JSON body. The body may be

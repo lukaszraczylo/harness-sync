@@ -5,7 +5,10 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/spf13/afero"
 	"gopkg.in/yaml.v3"
+
+	"github.com/lukaszraczylo/harness-sync/internal/fsx"
 )
 
 // Doc mirrors canonical.Skill / canonical.Agent without importing them.
@@ -35,15 +38,15 @@ func ParseFrontmatter(b []byte) (name, description string) {
 	return meta.Name, meta.Description
 }
 
-// ImportMarkdownTree walks dir and returns one Doc per markdown file. When
-// requiredFilename is non-empty (e.g. "SKILL.md"), only files with that exact
-// basename are included; otherwise any *.md.
-func ImportMarkdownTree(dir, requiredFilename string) ([]Doc, error) {
+// ImportMarkdownTreeFS walks dir on fs and returns one Doc per matching file.
+// When requiredFilename is non-empty (e.g. "SKILL.md"), only files with that
+// exact basename are included; otherwise any *.md.
+func ImportMarkdownTreeFS(fs fsx.FS, dir, requiredFilename string) ([]Doc, error) {
 	var docs []Doc
-	if !DirExists(dir) {
+	if !DirExistsFS(fs, dir) {
 		return docs, nil
 	}
-	err := filepath.Walk(dir, func(p string, info os.FileInfo, err error) error {
+	err := afero.Walk(fs, dir, func(p string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -56,7 +59,7 @@ func ImportMarkdownTree(dir, requiredFilename string) ([]Doc, error) {
 		if requiredFilename == "" && !strings.HasSuffix(p, ".md") {
 			return nil
 		}
-		body, err := os.ReadFile(p)
+		body, err := afero.ReadFile(fs, p)
 		if err != nil {
 			return err
 		}
@@ -74,4 +77,11 @@ func ImportMarkdownTree(dir, requiredFilename string) ([]Doc, error) {
 		return nil
 	})
 	return docs, err
+}
+
+// ImportMarkdownTree walks dir and returns one Doc per markdown file. When
+// requiredFilename is non-empty (e.g. "SKILL.md"), only files with that exact
+// basename are included; otherwise any *.md.
+func ImportMarkdownTree(dir, requiredFilename string) ([]Doc, error) {
+	return ImportMarkdownTreeFS(fsx.OS(), dir, requiredFilename)
 }

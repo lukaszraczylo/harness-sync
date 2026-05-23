@@ -6,11 +6,22 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/spf13/afero"
 	"gopkg.in/yaml.v3"
+
+	"github.com/lukaszraczylo/harness-sync/internal/fsx"
 )
 
+// Load loads a canonical Bundle from the given root directory using the OS
+// filesystem. It is a thin wrapper around LoadFS.
 func Load(root string) (*Bundle, error) {
-	info, err := os.Stat(root)
+	return LoadFS(fsx.OS(), root)
+}
+
+// LoadFS loads a canonical Bundle from root using the provided filesystem.
+// Use fsx.Mem() in tests to avoid touching real disk.
+func LoadFS(fs fsx.FS, root string) (*Bundle, error) {
+	info, err := fs.Stat(root)
 	if err != nil {
 		return nil, fmt.Errorf("canonical root %s: %w", root, err)
 	}
@@ -20,7 +31,7 @@ func Load(root string) (*Bundle, error) {
 
 	b := &Bundle{Root: root}
 
-	err = loadYAML(filepath.Join(root, "config.yaml"), &b.Config)
+	err = loadYAMLFS(fs, filepath.Join(root, "config.yaml"), &b.Config)
 	if err != nil {
 		return nil, err
 	}
@@ -29,7 +40,7 @@ func Load(root string) (*Bundle, error) {
 	}
 
 	profPath := filepath.Join(root, "profiles", b.Config.ActiveProfile+".yaml")
-	err = loadYAML(profPath, &b.Profile)
+	err = loadYAMLFS(fs, profPath, &b.Profile)
 	if err != nil {
 		return nil, fmt.Errorf("profile %q: %w", b.Config.ActiveProfile, err)
 	}
@@ -38,14 +49,14 @@ func Load(root string) (*Bundle, error) {
 	}
 
 	mcpPath := filepath.Join(root, "mcp.yaml")
-	if fileExists(mcpPath) {
-		err = loadYAML(mcpPath, &b.MCP)
+	if fileExistsFS(fs, mcpPath) {
+		err = loadYAMLFS(fs, mcpPath, &b.MCP)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	skills, err := loadMarkdownDir(filepath.Join(root, "skills"), "SKILL.md")
+	skills, err := loadMarkdownDirFS(fs, filepath.Join(root, "skills"), "SKILL.md")
 	if err != nil {
 		return nil, err
 	}
@@ -53,7 +64,7 @@ func Load(root string) (*Bundle, error) {
 		b.Skills = append(b.Skills, Skill(m))
 	}
 
-	agents, err := loadMarkdownDir(filepath.Join(root, "agents"), "")
+	agents, err := loadMarkdownDirFS(fs, filepath.Join(root, "agents"), "")
 	if err != nil {
 		return nil, err
 	}
@@ -62,24 +73,35 @@ func Load(root string) (*Bundle, error) {
 	}
 
 	b.Instructions.PerHarness = map[string]string{}
-	body, err := readFileIfExists(filepath.Join(root, "instructions", "global.md"))
+	body, err := readFileIfExistsFS(fs, filepath.Join(root, "instructions", "global.md"))
 	if err != nil {
 		return nil, err
 	}
 	b.Instructions.Global = body
 
 	perHarnessDir := filepath.Join(root, "instructions", "per-harness")
-	if entries, err := os.ReadDir(perHarnessDir); err == nil {
+	if dirExistsFS(fs, perHarnessDir) {
+		dir, err := fs.Open(perHarnessDir)
+		if err != nil {
+			return nil, err
+		}
+		entries, err := dir.Readdir(-1)
+		if closeErr := dir.Close(); closeErr != nil && err == nil {
+			err = closeErr
+		}
+		if err != nil {
+			return nil, err
+		}
 		for _, e := range entries {
 			if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") {
 				continue
 			}
-			body, err := os.ReadFile(filepath.Join(perHarnessDir, e.Name()))
+			entryBody, err := afero.ReadFile(fs, filepath.Join(perHarnessDir, e.Name()))
 			if err != nil {
 				return nil, err
 			}
 			harness := strings.TrimSuffix(e.Name(), ".md")
-			b.Instructions.PerHarness[harness] = string(body)
+			b.Instructions.PerHarness[harness] = string(entryBody)
 		}
 	}
 
@@ -93,12 +115,13 @@ type markdownDoc struct {
 	Path        string
 }
 
-func loadMarkdownDir(dir, requiredFilename string) ([]markdownDoc, error) {
+// loadMarkdownDirFS walks dir on fs and returns one markdownDoc per matching file.
+func loadMarkdownDirFS(fs fsx.FS, dir, requiredFilename string) ([]markdownDoc, error) {
 	var docs []markdownDoc
-	if !dirExists(dir) {
+	if !dirExistsFS(fs, dir) {
 		return docs, nil
 	}
-	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+	err := afero.Walk(fs, dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -111,7 +134,7 @@ func loadMarkdownDir(dir, requiredFilename string) ([]markdownDoc, error) {
 		if requiredFilename == "" && !strings.HasSuffix(path, ".md") {
 			return nil
 		}
-		body, err := os.ReadFile(path)
+		body, err := afero.ReadFile(fs, path)
 		if err != nil {
 			return err
 		}
@@ -149,8 +172,8 @@ func parseFrontmatter(b []byte) (name, description string) {
 	return meta.Name, meta.Description
 }
 
-func loadYAML(path string, out interface{}) error {
-	b, err := os.ReadFile(path)
+func loadYAMLFS(fs fsx.FS, path string, out interface{}) error {
+	b, err := afero.ReadFile(fs, path)
 	if err != nil {
 		return fmt.Errorf("read %s: %w", path, err)
 	}
@@ -160,9 +183,9 @@ func loadYAML(path string, out interface{}) error {
 	return nil
 }
 
-func readFileIfExists(path string) (string, error) {
-	b, err := os.ReadFile(path)
-	if os.IsNotExist(err) {
+func readFileIfExistsFS(fs fsx.FS, path string) (string, error) {
+	b, err := afero.ReadFile(fs, path)
+	if err != nil && os.IsNotExist(err) {
 		return "", nil
 	}
 	if err != nil {
@@ -171,12 +194,12 @@ func readFileIfExists(path string) (string, error) {
 	return string(b), nil
 }
 
-func fileExists(path string) bool {
-	info, err := os.Stat(path)
+func fileExistsFS(fs fsx.FS, path string) bool {
+	info, err := fs.Stat(path)
 	return err == nil && !info.IsDir()
 }
 
-func dirExists(path string) bool {
-	info, err := os.Stat(path)
+func dirExistsFS(fs fsx.FS, path string) bool {
+	info, err := fs.Stat(path)
 	return err == nil && info.IsDir()
 }
