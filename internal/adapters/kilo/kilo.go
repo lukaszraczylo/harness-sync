@@ -126,14 +126,18 @@ func (a *Adapter) Render(b *canonical.Bundle) (*adapter.FileSet, error) {
 			"enabled_providers": nil, // delete filter
 		}
 
-		// Deep-merge provider: add our entries INTO the existing provider map.
+		// Deep-merge provider: add our entries INTO the existing provider map,
+		// then absorb any duplicate providers that share the same gateway URL.
 		if newProv, ok := overlay["provider"].(map[string]any); ok && len(newProv) > 0 {
-			existing, _ := ocBase["provider"].(map[string]any)
-			if existing == nil {
-				existing = map[string]any{}
+			existingProv, _ := ocBase["provider"].(map[string]any)
+			if existingProv == nil {
+				existingProv = map[string]any{}
 			}
-			maps.Copy(existing, newProv)
-			ocOverlay["provider"] = existing
+			maps.Copy(existingProv, newProv)
+			// Absorb providers at the same URL into harness-sync-gateway,
+			// preserving user-crafted display names and custom limits.
+			merged := common.AbsorbDuplicateProviders(existingProv, common.GatewayProviderKey(b.Profile.Gateway.URL), b.Profile.Gateway.URL)
+			ocOverlay["provider"] = merged
 		}
 		// Copy model/small_model/mcp from the kilo.json overlay.
 		for _, k := range []string{"model", "small_model", "mcp"} {

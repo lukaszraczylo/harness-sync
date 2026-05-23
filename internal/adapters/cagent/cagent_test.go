@@ -48,20 +48,20 @@ func TestCagentRenderProducesExpectedTargets(t *testing.T) {
 
 	agents := parsed["agents"].(map[string]any)
 	def := agents["default"].(map[string]any)
-	assert.Equal(t, "harness-sync-gateway/claude-sonnet-4-6", def["model"])
+	assert.Equal(t, "hs-gw/claude-sonnet-4-6", def["model"])
 	assert.Contains(t, def["instruction"], "# global instruction")
 
 	// providers map (new schema).
 	providers := parsed["providers"].(map[string]any)
-	gwProv := providers["harness-sync-gateway"].(map[string]any)
+	gwProv := providers["hs-gw"].(map[string]any)
 	assert.Equal(t, "https://gw", gwProv["base_url"])
 	assert.Equal(t, "openai", gwProv["provider"])
 	assert.NotContains(t, gwProv, "token_key")
 
 	// models map.
 	models := parsed["models"].(map[string]any)
-	gw := models["harness-sync-gateway"].(map[string]any)
-	assert.Equal(t, "harness-sync-gateway", gw["provider"])
+	gw := models["hs-gw"].(map[string]any)
+	assert.Equal(t, "hs-gw", gw["provider"])
 	assert.Equal(t, "claude-sonnet-4-6", gw["model"])
 
 	mcps := parsed["mcps"].(map[string]any)
@@ -93,7 +93,7 @@ func TestCagentRenderProvidersAndModelsMaps(t *testing.T) {
 	// providers block present.
 	providers, ok := parsed["providers"].(map[string]any)
 	require.True(t, ok, "providers must be a map")
-	gw, ok := providers["harness-sync-gateway"].(map[string]any)
+	gw, ok := providers["hs-gw"].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, "https://gw", gw["base_url"])
 	assert.Equal(t, "tok", gw["api_key"])
@@ -103,7 +103,7 @@ func TestCagentRenderProvidersAndModelsMaps(t *testing.T) {
 	// agents.default.model uses inline shorthand.
 	agents := parsed["agents"].(map[string]any)
 	def := agents["default"].(map[string]any)
-	assert.Equal(t, "harness-sync-gateway/claude-sonnet-4-6", def["model"])
+	assert.Equal(t, "hs-gw/claude-sonnet-4-6", def["model"])
 }
 
 func TestCagentRenderNoMCP(t *testing.T) {

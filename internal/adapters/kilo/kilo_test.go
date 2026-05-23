@@ -43,12 +43,12 @@ func TestKiloRender(t *testing.T) {
 	var parsed map[string]any
 	require.NoError(t, json.Unmarshal(seen[cfgDest].Content, &parsed))
 	// model is "providerID/modelID" string.
-	assert.Equal(t, "harness-sync-gateway/sonnet", parsed["model"])
-	assert.Equal(t, "harness-sync-gateway/sonnet", parsed["small_model"])
+	assert.Equal(t, "hs-gw/sonnet", parsed["model"])
+	assert.Equal(t, "hs-gw/sonnet", parsed["small_model"])
 	// provider map present with npm field.
 	provider, ok := parsed["provider"].(map[string]any)
 	require.True(t, ok, "provider must be a map")
-	gw, ok := provider["harness-sync-gateway"].(map[string]any)
+	gw, ok := provider["hs-gw"].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, "@ai-sdk/openai-compatible", gw["npm"])
 	assert.Contains(t, parsed, "mcp")
@@ -113,14 +113,14 @@ func TestKiloRenderEmitsModelString(t *testing.T) {
 	var parsed map[string]any
 	require.NoError(t, json.Unmarshal(seen[cfgDest].Content, &parsed))
 
-	// model must be "harness-sync-gateway/<modelID>".
-	assert.Equal(t, "harness-sync-gateway/claude-sonnet-4-6", parsed["model"])
-	assert.Equal(t, "harness-sync-gateway/claude-sonnet-4-6", parsed["small_model"])
+	// model must be "hs-gw/<modelID>".
+	assert.Equal(t, "hs-gw/claude-sonnet-4-6", parsed["model"])
+	assert.Equal(t, "hs-gw/claude-sonnet-4-6", parsed["small_model"])
 
 	// provider map has npm field.
 	provider, ok := parsed["provider"].(map[string]any)
 	require.True(t, ok)
-	gw, ok := provider["harness-sync-gateway"].(map[string]any)
+	gw, ok := provider["hs-gw"].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, "@ai-sdk/openai-compatible", gw["npm"])
 	opts, ok := gw["options"].(map[string]any)
@@ -165,9 +165,9 @@ func TestKiloRenderMergesOpenCodeJSONC(t *testing.T) {
 	// llmgw preserved, harness-sync-gateway added.
 	provider := parsed["provider"].(map[string]any)
 	assert.Contains(t, provider, "llmgw")
-	assert.Contains(t, provider, "harness-sync-gateway")
+	assert.Contains(t, provider, "hs-gw")
 	// model updated.
-	assert.Equal(t, "harness-sync-gateway/sonnet", parsed["model"])
+	assert.Equal(t, "hs-gw/sonnet", parsed["model"])
 }
 
 func TestKiloImport(t *testing.T) {

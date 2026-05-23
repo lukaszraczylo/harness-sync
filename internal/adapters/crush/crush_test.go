@@ -44,8 +44,8 @@ func TestCrushRenderProducesExpectedTargets(t *testing.T) {
 	// providers must be a map (not array), keyed by providerID.
 	providers, ok := parsed["providers"].(map[string]any)
 	require.True(t, ok, "providers must be a map")
-	gw, ok := providers["harness-sync-gateway"].(map[string]any)
-	require.True(t, ok, "harness-sync-gateway provider missing")
+	gw, ok := providers["hs-gw"].(map[string]any)
+	require.True(t, ok, "hs-gw provider missing")
 	assert.Equal(t, "openai-compat", gw["type"])
 	// models must be role-map with large/small/title.
 	models, ok := parsed["models"].(map[string]any)
@@ -137,7 +137,7 @@ func TestCrushRenderProducesMapProvidersAndRoleModels(t *testing.T) {
 	// providers is a map, not an array.
 	providers, ok := parsed["providers"].(map[string]any)
 	require.True(t, ok, "providers must be a map")
-	gw, ok := providers["harness-sync-gateway"].(map[string]any)
+	gw, ok := providers["hs-gw"].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, "openai-compat", gw["type"])
 	assert.Equal(t, "https://gw", gw["base_url"])
@@ -160,7 +160,7 @@ func TestCrushRenderProducesMapProvidersAndRoleModels(t *testing.T) {
 		sel, ok := roleModels[role].(map[string]any)
 		require.True(t, ok, "role %s missing", role)
 		assert.Equal(t, "claude-sonnet-4-6", sel["model"])
-		assert.Equal(t, "harness-sync-gateway", sel["provider"])
+		assert.Equal(t, "hs-gw", sel["provider"])
 	}
 }
 

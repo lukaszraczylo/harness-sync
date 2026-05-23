@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/banner.svg" alt="harness-sync — one config, every harness" width="900">
+  <a href="https://harness-sync.raczylo.com"><img src="docs/assets/banner.svg" alt="harness-sync — one config, every harness" width="900"></a>
 </p>
 
 <p align="center">

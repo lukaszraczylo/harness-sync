@@ -19,7 +19,7 @@ func TestBuildProvidersGatewayFirst(t *testing.T) {
 	}
 	out := BuildProviders(p)
 	require.Len(t, out, 2)
-	assert.Equal(t, "harness-sync-gateway", out[0]["id"])
+	assert.Equal(t, "hs-gw", out[0]["id"])
 	assert.Equal(t, "anthropic", out[1]["id"])
 	assert.NotNil(t, out[0]["models"])
 }

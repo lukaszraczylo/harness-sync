@@ -136,7 +136,7 @@ func zedLanguageModels(p *canonical.Profile) map[string]any {
 	}
 	return map[string]any{
 		"openai_compatible": map[string]any{
-			common.GatewayProviderID: entry,
+			common.GatewayProviderKey(p.Gateway.URL): entry,
 		},
 	}
 }
@@ -156,7 +156,7 @@ func zedAgentBlock(existing []byte, p *canonical.Profile) map[string]any {
 	}
 	if p.Gateway.DefaultModel != "" {
 		base["default_model"] = map[string]any{
-			"provider": common.GatewayProviderID,
+			"provider": common.GatewayProviderKey(p.Gateway.URL),
 			"model":    p.Gateway.DefaultModel,
 		}
 	}

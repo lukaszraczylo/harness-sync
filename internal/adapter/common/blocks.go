@@ -3,15 +3,36 @@ package common
 
 import (
 	"encoding/json"
+	"net/url"
 	"strings"
 
 	"github.com/lukaszraczylo/harness-sync/internal/canonical"
 )
 
-const gatewayProviderID = "harness-sync-gateway"
+const fallbackGatewayProviderID = "harness-sync-gateway"
 
 // GatewayProviderID is the canonical provider key used across all adapters.
-const GatewayProviderID = gatewayProviderID
+// Deprecated: prefer GatewayProviderKey(gatewayURL) for a stable URL-derived key.
+const GatewayProviderID = fallbackGatewayProviderID
+
+// GatewayProviderKey returns a stable provider key derived from the gateway URL.
+// Format: "hs-<hostname>" with dots and special chars normalised to dashes.
+// Falls back to "harness-sync-gateway" when the URL is empty or unparseable.
+//
+//	https://llmgw.h.raczylo.com/v1  →  hs-llmgw-h-raczylo-com
+func GatewayProviderKey(gatewayURL string) string {
+	if gatewayURL == "" {
+		return fallbackGatewayProviderID
+	}
+	u, err := url.Parse(gatewayURL)
+	if err != nil || u.Hostname() == "" {
+		return fallbackGatewayProviderID
+	}
+	host := u.Hostname()
+	// Replace dots, underscores, and colons (port separators) with dashes.
+	r := strings.NewReplacer(".", "-", "_", "-", ":", "-")
+	return "hs-" + r.Replace(host)
+}
 
 // ProviderEntry is a generic provider record. Adapters may massage further.
 type ProviderEntry = map[string]any
@@ -22,8 +43,9 @@ type ProviderEntry = map[string]any
 func BuildProviders(p *canonical.Profile) []ProviderEntry {
 	out := make([]ProviderEntry, 0, len(p.Upstreams)+1)
 	if p.Gateway.URL != "" {
+		key := GatewayProviderKey(p.Gateway.URL)
 		gw := ProviderEntry{
-			"id":       gatewayProviderID,
+			"id":       key,
 			"name":     "harness-sync gateway",
 			"base_url": p.Gateway.URL,
 			"api_key":  p.Gateway.Token,
@@ -89,7 +111,7 @@ func ProvidersAsCrushMap(p *canonical.Profile) map[string]any {
 	if len(models) == 0 && p.Gateway.DefaultModel != "" {
 		models = append(models, crushModel(p.Gateway.DefaultModel))
 	}
-	out[gatewayProviderID] = map[string]any{
+	out[GatewayProviderKey(p.Gateway.URL)] = map[string]any{
 		"type":     "openai-compat",
 		"base_url": p.Gateway.URL,
 		"api_key":  p.Gateway.Token,
@@ -106,7 +128,7 @@ func CrushRoleModels(p *canonical.Profile) map[string]any {
 	}
 	sel := map[string]any{
 		"model":    p.Gateway.DefaultModel,
-		"provider": gatewayProviderID,
+		"provider": GatewayProviderKey(p.Gateway.URL),
 	}
 	return map[string]any{
 		"large": sel,
@@ -143,7 +165,7 @@ func ProvidersAsMap(p *canonical.Profile) map[string]any {
 		if len(models) > 0 {
 			entry["models"] = models
 		}
-		out[gatewayProviderID] = entry
+		out[GatewayProviderKey(p.Gateway.URL)] = entry
 	}
 	for _, up := range p.Upstreams {
 		entry := map[string]any{
@@ -169,7 +191,7 @@ func KiloModelString(p *canonical.Profile) string {
 	if p.Gateway.DefaultModel == "" {
 		return ""
 	}
-	return gatewayProviderID + "/" + p.Gateway.DefaultModel
+	return GatewayProviderKey(p.Gateway.URL) + "/" + p.Gateway.DefaultModel
 }
 
 // ProvidersAsCagentMap returns the providers block for cagent:
@@ -179,7 +201,7 @@ func ProvidersAsCagentMap(p *canonical.Profile) map[string]any {
 	if p.Gateway.URL == "" {
 		return out
 	}
-	out[gatewayProviderID] = map[string]any{
+	out[GatewayProviderKey(p.Gateway.URL)] = map[string]any{
 		"base_url": p.Gateway.URL,
 		"api_key":  p.Gateway.Token,
 		"provider": "openai",
@@ -227,7 +249,7 @@ func GooseCustomProviderFile(p *canonical.Profile) ([]byte, string) {
 	if p.Gateway.URL == "" {
 		return nil, ""
 	}
-	providerID := gatewayProviderID
+	providerID := GatewayProviderKey(p.Gateway.URL)
 	providerName := "custom_" + providerID
 
 	models := make([]map[string]any, 0)

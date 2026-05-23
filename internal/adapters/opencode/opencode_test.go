@@ -129,15 +129,15 @@ func TestOpencodeRenderProviderHasNpm(t *testing.T) {
 	// provider map has npm field.
 	provider, ok := parsed["provider"].(map[string]any)
 	require.True(t, ok)
-	gw, ok := provider["harness-sync-gateway"].(map[string]any)
+	gw, ok := provider["hs-gw"].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, "@ai-sdk/openai-compatible", gw["npm"])
 	opts, ok := gw["options"].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, "https://gw", opts["baseURL"])
 
-	// model is "harness-sync-gateway/modelID".
-	assert.Equal(t, "harness-sync-gateway/claude-sonnet-4-6", parsed["model"])
+	// model is "hs-gw/modelID".
+	assert.Equal(t, "hs-gw/claude-sonnet-4-6", parsed["model"])
 }
 
 func TestOpencodeImportStripsComments(t *testing.T) {

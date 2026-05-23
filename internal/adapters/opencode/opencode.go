@@ -2,6 +2,7 @@
 package opencode
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 
@@ -76,8 +77,27 @@ func (a *Adapter) Render(b *canonical.Bundle) (*adapter.FileSet, error) {
 
 	cfgPath := filepath.Join(base, "opencode.jsonc")
 	existing, _ := os.ReadFile(cfgPath)
+
+	// Build the provider map, then absorb any existing providers at the same
+	// gateway URL so duplicates don't accumulate across apply runs.
+	provMap := common.ProvidersAsMap(&b.Profile)
+	if len(existing) > 0 {
+		var base map[string]any
+		clean := common.StripJSONComments(string(existing))
+		if json.Unmarshal([]byte(clean), &base) == nil {
+			if existingProv, ok := base["provider"].(map[string]any); ok {
+				for k, v := range existingProv {
+					if _, ours := provMap[k]; !ours {
+						provMap[k] = v
+					}
+				}
+				provMap = common.AbsorbDuplicateProviders(provMap, common.GatewayProviderKey(b.Profile.Gateway.URL), b.Profile.Gateway.URL)
+			}
+		}
+	}
+
 	overlay := map[string]any{
-		"provider": common.ProvidersAsMap(&b.Profile),
+		"provider": provMap,
 		"model":    common.KiloModelString(&b.Profile),
 	}
 	if mcp := common.BuildMCPMapStyled(&b.MCP, common.MCPOpencodeStyle); len(mcp) > 0 {

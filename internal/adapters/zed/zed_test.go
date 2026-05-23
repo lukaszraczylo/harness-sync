@@ -46,16 +46,16 @@ func TestZedRenderProducesExpectedTargets(t *testing.T) {
 	var parsed map[string]any
 	require.NoError(t, json.Unmarshal(seen[cfgDest].Content, &parsed))
 
-	// agent.default_model routes through harness-sync-gateway (openai_compatible provider).
+	// agent.default_model routes through hs-llmgw-example-com (openai_compatible provider).
 	agent := parsed["agent"].(map[string]any)
 	dm := agent["default_model"].(map[string]any)
-	assert.Equal(t, "harness-sync-gateway", dm["provider"])
+	assert.Equal(t, "hs-llmgw-example-com", dm["provider"])
 	assert.Equal(t, "claude-sonnet-4-6", dm["model"])
 
 	// language_models.openai_compatible has our named gateway entry.
 	lm := parsed["language_models"].(map[string]any)
 	oc := lm["openai_compatible"].(map[string]any)
-	gw := oc["harness-sync-gateway"].(map[string]any)
+	gw := oc["hs-llmgw-example-com"].(map[string]any)
 	assert.Equal(t, "https://llmgw.example.com/v1", gw["api_url"])
 
 	// context_servers must be absent — Zed serde untagged-enum bug aborts
@@ -140,8 +140,8 @@ func TestZedRenderEmitsLanguageModelsOpenAICompatible(t *testing.T) {
 	require.True(t, ok, "language_models must be present")
 	oc, ok := lm["openai_compatible"].(map[string]any)
 	require.True(t, ok, "language_models.openai_compatible must be present")
-	gw, ok := oc["harness-sync-gateway"].(map[string]any)
-	require.True(t, ok, "openai_compatible.harness-sync-gateway must be present")
+	gw, ok := oc["hs-gw"].(map[string]any)
+	require.True(t, ok, "openai_compatible.hs-gw must be present")
 	assert.Equal(t, "https://gw", gw["api_url"])
 	avail, ok := gw["available_models"].([]any)
 	require.True(t, ok)

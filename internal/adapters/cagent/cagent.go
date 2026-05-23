@@ -89,11 +89,9 @@ func (a *Adapter) Render(b *canonical.Bundle) (*adapter.FileSet, error) {
 		mcps[s.Name] = e
 	}
 
+	provKey := common.GatewayProviderKey(b.Profile.Gateway.URL)
 	// inline model shorthand: "providerID/modelID"
-	modelRef := ""
-	if b.Profile.Gateway.DefaultModel != "" {
-		modelRef = "harness-sync-gateway/" + b.Profile.Gateway.DefaultModel
-	}
+	modelRef := common.KiloModelString(&b.Profile)
 
 	cfg := map[string]any{
 		"version": 8,
@@ -108,8 +106,8 @@ func (a *Adapter) Render(b *canonical.Bundle) (*adapter.FileSet, error) {
 		},
 		"providers": common.ProvidersAsCagentMap(&b.Profile),
 		"models": map[string]any{
-			"harness-sync-gateway": map[string]any{
-				"provider": "harness-sync-gateway",
+			provKey: map[string]any{
+				"provider": provKey,
 				"model":    b.Profile.Gateway.DefaultModel,
 			},
 		},

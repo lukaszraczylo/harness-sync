@@ -91,7 +91,7 @@ func TestGooseRenderGatewayURL(t *testing.T) {
 	var parsed map[string]any
 	require.NoError(t, yaml.Unmarshal(seen[cfgDest].Content, &parsed))
 	// Custom gateway → GOOSE_PROVIDER is the custom provider name.
-	assert.Equal(t, "custom_harness-sync-gateway", parsed["GOOSE_PROVIDER"])
+	assert.Equal(t, "custom_hs-gw", parsed["GOOSE_PROVIDER"])
 }
 
 func TestGooseRenderProducesCustomProviderFile(t *testing.T) {
@@ -109,13 +109,13 @@ func TestGooseRenderProducesCustomProviderFile(t *testing.T) {
 	seen := map[string]adapter.File{}
 	fs.ForEach(func(f adapter.File) { seen[f.Dest] = f })
 
-	cpDest := filepath.Join(home, ".config", "goose", "custom_providers", "custom_harness-sync-gateway.json")
+	cpDest := filepath.Join(home, ".config", "goose", "custom_providers", "custom_hs-gw.json")
 	require.Contains(t, seen, cpDest)
 	assert.Equal(t, adapter.RenderedFile, seen[cpDest].Kind)
 
 	var cp map[string]any
 	require.NoError(t, json.Unmarshal(seen[cpDest].Content, &cp))
-	assert.Equal(t, "custom_harness-sync-gateway", cp["name"])
+	assert.Equal(t, "custom_hs-gw", cp["name"])
 	assert.Equal(t, "openai", cp["engine"])
 	assert.Equal(t, "tok", cp["api_key"])
 	assert.NotContains(t, cp, "api_key_env")
