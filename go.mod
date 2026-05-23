@@ -1,6 +1,6 @@
 module github.com/lukaszraczylo/harness-sync
 
-go 1.26.3
+go 1.25
 
 require (
 	github.com/charmbracelet/huh v1.0.0
