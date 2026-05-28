@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/lukaszraczylo/harness-sync/internal/adapter"
+	"github.com/lukaszraczylo/harness-sync/internal/gitx"
 )
 
 func TestProfileList(t *testing.T) {
@@ -133,6 +134,11 @@ func TestProfileUseWithApply(t *testing.T) {
 	profYAML := "name: work\ngateway:\n  url: https://gw\n  token: tok\n  default_model: m\nmodels:\n  - {id: m}\n"
 	require.NoError(t, os.WriteFile(filepath.Join(root, "profiles", "work.yaml"), []byte(profYAML), 0o600))
 	require.NoError(t, os.WriteFile(filepath.Join(root, "config.yaml"), []byte("active_profile: home\n"), 0o600))
+
+	// apply requires a git repo (init normally creates it).
+	repo := gitx.New(root)
+	require.NoError(t, repo.Init())
+	require.NoError(t, repo.Configure("t", "t@t"))
 
 	reg := adapter.NewRegistry()
 	// No adapters detected → apply runs but writes 0 files (nothing to render).

@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"fmt"
 	"os/exec"
+	"strconv"
 )
 
 type Repo struct {
@@ -71,12 +72,40 @@ func (r *Repo) IsRepo() bool {
 	return err == nil
 }
 
+// HasChanges reports whether the working tree has any changes (tracked or
+// untracked). Used to avoid a "nothing to commit" failure when an apply
+// touched only files outside the repo, or re-applied already-current state.
+func (r *Repo) HasChanges() (bool, error) {
+	out, err := r.run("status", "--porcelain")
+	if err != nil {
+		return false, err
+	}
+	return len(bytes.TrimSpace(out)) > 0, nil
+}
+
+// CommitCount returns the number of commits reachable from HEAD.
+func (r *Repo) CommitCount() (int, error) {
+	b, err := r.run("rev-list", "--count", "HEAD")
+	if err != nil {
+		return 0, err
+	}
+	return strconv.Atoi(string(bytes.TrimSpace(b)))
+}
+
 // Revert undoes the last N commits with `git revert --no-edit HEAD~N..HEAD`.
-// n must be >= 1.
+// n must be >= 1 and strictly less than the total commit count (the range
+// syntax cannot include the repository's initial commit).
 func (r *Repo) Revert(n int) error {
 	if n < 1 {
 		return fmt.Errorf("revert: n must be >= 1, got %d", n)
 	}
-	_, err := r.run("revert", "--no-edit", fmt.Sprintf("HEAD~%d..HEAD", n))
+	count, err := r.CommitCount()
+	if err != nil {
+		return err
+	}
+	if n >= count {
+		return fmt.Errorf("revert: cannot revert %d commit(s); only %d apply commit(s) exist in the canonical repo", n, count)
+	}
+	_, err = r.run("revert", "--no-edit", fmt.Sprintf("HEAD~%d..HEAD", n))
 	return err
 }

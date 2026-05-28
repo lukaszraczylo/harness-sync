@@ -50,6 +50,13 @@ type Action struct {
 // placeholders alone; the downstream harness resolves them at use time.
 func Run(opt Options) (*Report, error) {
 	rep := &Report{}
+	// Precondition: the canonical root must be a git repo before we mutate any
+	// real harness target, otherwise files are written and the trailing
+	// AddAll/Commit fails — leaving the user's tools changed with no state
+	// snapshot or commit. Fail fast instead.
+	if !opt.DryRun && opt.Repo != nil && !opt.Repo.IsRepo() {
+		return rep, fmt.Errorf("canonical root is not a git repository; run `harness-sync init` first")
+	}
 	for _, ad := range opt.Adapters {
 		files, err := ad.Render(opt.Bundle)
 		if err != nil {
@@ -66,12 +73,23 @@ func Run(opt Options) (*Report, error) {
 			return rep, renderErr
 		}
 	}
-	if !opt.DryRun && rep.Written > 0 && opt.Repo != nil {
+	// Stage everything and commit only when the repo actually changed. Harness
+	// target files live OUTSIDE the repo, so rep.Written alone doesn't imply a
+	// commit is due; checking the working tree also avoids a "nothing to commit"
+	// failure (e.g. a rollback re-apply where state was already reverted) and
+	// ensures newly created state/ snapshots from an all-skip run get committed.
+	if !opt.DryRun && opt.Repo != nil {
 		if err := opt.Repo.AddAll(); err != nil {
 			return rep, err
 		}
-		if err := opt.Repo.Commit(fmt.Sprintf("apply: %d files, %d conflicts", rep.Written, rep.Conflicts)); err != nil {
+		changed, err := opt.Repo.HasChanges()
+		if err != nil {
 			return rep, err
+		}
+		if changed {
+			if err := opt.Repo.Commit(fmt.Sprintf("apply: %d files, %d conflicts", rep.Written, rep.Conflicts)); err != nil {
+				return rep, err
+			}
 		}
 	}
 	return rep, nil
@@ -94,15 +112,21 @@ func statePath(root, adapterName, dest string) string {
 func handleRendered(opt Options, adapterName string, f adapter.File, rep *Report) error {
 	sp := statePath(opt.Bundle.Root, adapterName, f.Dest)
 	base, _ := os.ReadFile(sp)
+	_, statErr := os.Stat(f.Dest)
+	targetExists := statErr == nil
 	current, _ := os.ReadFile(f.Dest)
 
-	if string(current) == string(f.Content) {
+	if targetExists && string(current) == string(f.Content) {
 		rep.Skipped++
 		rep.Actions = append(rep.Actions, Action{Adapter: adapterName, Dest: f.Dest, Kind: "skipped", Note: "already in sync"})
 		return writeState(opt, sp, f.Content)
 	}
 
-	if opt.Force || f.NoMerge || len(base) == 0 || string(current) == string(base) {
+	// Write fresh (no 3-way merge) when forced, for adapter-managed files, when
+	// there is no base snapshot, when the target was deleted (treat as a clean
+	// re-create rather than a phantom conflict), or when the target still equals
+	// the base.
+	if opt.Force || f.NoMerge || len(base) == 0 || !targetExists || string(current) == string(base) {
 		if opt.DryRun {
 			rep.Actions = append(rep.Actions, Action{Adapter: adapterName, Dest: f.Dest, Kind: "wrote", Note: "would write"})
 			return nil
@@ -131,8 +155,12 @@ func handleRendered(opt Options, adapterName string, f adapter.File, rep *Report
 		if err := os.WriteFile(f.Dest+".rej", res.Body, 0o600); err != nil {
 			return err
 		}
+		// State is intentionally NOT advanced on conflict: re-apply re-attempts
+		// the merge. The only clean resolution is making the target byte-identical
+		// to the rendered output (then the skip path advances state).
 		rep.Conflicts++
-		rep.Actions = append(rep.Actions, Action{Adapter: adapterName, Dest: f.Dest, Kind: "conflict", Note: "wrote .rej"})
+		rep.Actions = append(rep.Actions, Action{Adapter: adapterName, Dest: f.Dest, Kind: "conflict",
+			Note: "wrote .rej; resolve by matching rendered output (edits that differ re-merge against the prior base)"})
 		return nil
 	}
 	if opt.DryRun {
@@ -192,11 +220,20 @@ func writeFile(dest string, body []byte, mode os.FileMode) error {
 	if err := os.WriteFile(tmp, body, mode); err != nil {
 		return err
 	}
-	return os.Rename(tmp, dest)
+	if err := os.Rename(tmp, dest); err != nil {
+		_ = os.Remove(tmp) // don't leave an orphan .tmp on rename failure
+		return err
+	}
+	return nil
 }
 
+// writeState refreshes the state snapshot at sp, skipping the write when the
+// snapshot already matches body (avoids needless git churn).
 func writeState(opt Options, sp string, body []byte) error {
 	if opt.DryRun {
+		return nil
+	}
+	if existing, err := os.ReadFile(sp); err == nil && string(existing) == string(body) {
 		return nil
 	}
 	if err := os.MkdirAll(filepath.Dir(sp), 0o750); err != nil {

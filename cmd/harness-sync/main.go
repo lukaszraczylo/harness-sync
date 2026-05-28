@@ -39,7 +39,7 @@ func main() {
 	root.AddCommand(cli.NewShow(reg))
 	root.AddCommand(cli.NewInit(reg))
 	root.AddCommand(cli.NewProfile(reg))
-	root.AddCommand(cli.NewRollback())
+	root.AddCommand(cli.NewRollback(reg))
 	root.AddCommand(cli.NewAdapter(reg))
 	root.AddCommand(cli.NewUpdate())
 

@@ -13,6 +13,38 @@ import (
 	"github.com/lukaszraczylo/harness-sync/internal/gitx"
 )
 
+// selectAdapters resolves which adapters to operate on. Explicit names win;
+// otherwise the detected adapters are used, intersected with enabled (the
+// profile's enabled_harnesses) when that list is non-empty.
+func selectAdapters(reg *adapter.Registry, names, enabled []string) ([]adapter.Adapter, error) {
+	if len(names) > 0 {
+		out := make([]adapter.Adapter, 0, len(names))
+		for _, n := range names {
+			a, ok := reg.Get(n)
+			if !ok {
+				return nil, fmt.Errorf("unknown adapter %q", n)
+			}
+			out = append(out, a)
+		}
+		return out, nil
+	}
+	enabledSet := make(map[string]bool, len(enabled))
+	for _, e := range enabled {
+		enabledSet[e] = true
+	}
+	var out []adapter.Adapter
+	for _, a := range reg.All() {
+		if !a.Detect() {
+			continue
+		}
+		if len(enabledSet) > 0 && !enabledSet[a.Name()] {
+			continue
+		}
+		out = append(out, a)
+	}
+	return out, nil
+}
+
 // isTerminal returns true when os.Stdin is an interactive terminal.
 // Used to decide whether to show the first-run prompt.
 func isTerminal() bool {
@@ -74,21 +106,9 @@ func NewApply(reg *adapter.Registry) *cobra.Command {
 				}
 			}
 
-			var selected []adapter.Adapter
-			if len(args) == 0 {
-				for _, a := range reg.All() {
-					if a.Detect() {
-						selected = append(selected, a)
-					}
-				}
-			} else {
-				for _, name := range args {
-					a, ok := reg.Get(name)
-					if !ok {
-						return fmt.Errorf("unknown adapter %q", name)
-					}
-					selected = append(selected, a)
-				}
+			selected, err := selectAdapters(reg, args, b.Config.EnabledHarnesses)
+			if err != nil {
+				return err
 			}
 
 			opt := apply.Options{
