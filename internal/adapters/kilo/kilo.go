@@ -2,8 +2,6 @@
 package kilo
 
 import (
-	"encoding/json"
-	"maps"
 	"os"
 	"path/filepath"
 
@@ -59,7 +57,8 @@ func (a *Adapter) Detect() bool {
 // kilo.json is MERGED to preserve user-managed keys ($schema, small_model,
 // instructions, permission, compaction, watcher, formatter, skills).
 // Key "model" is a plain string; MCP uses "mcp" with local/remote type entries.
-// No "providers" key — kilo has no such concept.
+// Providers are written under the singular "provider" map (mirroring opencode),
+// preserving + deduplicating any the user already configured.
 func (a *Adapter) Render(b *canonical.Bundle) (*adapter.FileSet, error) {
 	fs := adapter.NewFileSet()
 	base := filepath.Join(a.home, ".config", "kilo")
@@ -79,18 +78,23 @@ func (a *Adapter) Render(b *canonical.Bundle) (*adapter.FileSet, error) {
 	cfgPath := filepath.Join(base, "kilo.json")
 	existing, _ := os.ReadFile(cfgPath)
 	modelStr := common.KiloModelString(&b.Profile)
-	overlay := map[string]any{}
-	if providers := common.ProvidersAsMap(&b.Profile); len(providers) > 0 {
-		overlay["provider"] = providers
+	rawProviders := common.ProvidersAsMap(&b.Profile)
+	mcpMap := common.BuildMCPMapStyled(&b.MCP, common.MCPOpencodeStyle)
+
+	// Overlay for kilo.json: preserve the user's existing providers (+dedup)
+	// and union MCP servers so neither is wholesale-replaced on apply.
+	kiloOverlay := map[string]any{}
+	if len(rawProviders) > 0 {
+		kiloOverlay["provider"] = common.MergeProviderMap(existing, rawProviders, b.Profile.Gateway.URL)
 	}
 	if modelStr != "" {
-		overlay["model"] = modelStr
-		overlay["small_model"] = modelStr
+		kiloOverlay["model"] = modelStr
+		kiloOverlay["small_model"] = modelStr
 	}
-	if mcp := common.BuildMCPMapStyled(&b.MCP, common.MCPOpencodeStyle); len(mcp) > 0 {
-		overlay["mcp"] = mcp
+	if len(mcpMap) > 0 {
+		kiloOverlay["mcp"] = common.UnionNestedMap(existing, "mcp", mcpMap)
 	}
-	merged, err := common.MergeJSONKeys(existing, overlay)
+	merged, err := common.MergeJSONKeys(existing, kiloOverlay)
 	if err != nil {
 		return nil, err
 	}
@@ -102,9 +106,21 @@ func (a *Adapter) Render(b *canonical.Bundle) (*adapter.FileSet, error) {
 
 	// Also merge into opencode.jsonc when present — kilo reads it as its
 	// primary config. Delete the enabled_providers filter so our provider is
-	// visible alongside user-defined providers.
+	// visible alongside user-defined providers. mergeOpenCodeJSONC merges the
+	// raw provider/MCP maps against opencode.jsonc's own existing content.
+	ocOverlay := map[string]any{}
+	if len(rawProviders) > 0 {
+		ocOverlay["provider"] = rawProviders
+	}
+	if modelStr != "" {
+		ocOverlay["model"] = modelStr
+		ocOverlay["small_model"] = modelStr
+	}
+	if len(mcpMap) > 0 {
+		ocOverlay["mcp"] = mcpMap
+	}
 	ocPath := filepath.Join(base, "opencode.jsonc")
-	if ocContent, mergeErr := mergeOpenCodeJSONC(ocPath, overlay, b.Profile.Gateway.URL); mergeErr != nil {
+	if ocContent, mergeErr := mergeOpenCodeJSONC(ocPath, ocOverlay, b.Profile.Gateway.URL); mergeErr != nil {
 		return nil, mergeErr
 	} else if ocContent != nil {
 		fs.Add(adapter.File{
@@ -126,28 +142,20 @@ func mergeOpenCodeJSONC(path string, overlay map[string]any, gatewayURL string) 
 	if err != nil {
 		return nil, nil //nolint:nilerr // file absent is not an error
 	}
-
-	var ocBase map[string]any
 	clean := common.StripJSONComments(string(ocRaw))
-	_ = json.Unmarshal([]byte(clean), &ocBase)
-	if ocBase == nil {
-		ocBase = map[string]any{}
-	}
 
 	ocOverlay := map[string]any{"enabled_providers": nil}
 
 	if newProv, ok := overlay["provider"].(map[string]any); ok && len(newProv) > 0 {
-		existingProv, _ := ocBase["provider"].(map[string]any)
-		if existingProv == nil {
-			existingProv = map[string]any{}
-		}
-		maps.Copy(existingProv, newProv)
-		ocOverlay["provider"] = common.AbsorbDuplicateProviders(existingProv, common.GatewayProviderKey(gatewayURL), gatewayURL)
+		ocOverlay["provider"] = common.MergeProviderMap([]byte(clean), newProv, gatewayURL)
 	}
-	for _, k := range []string{"model", "small_model", "mcp"} {
+	for _, k := range []string{"model", "small_model"} {
 		if v, ok := overlay[k]; ok {
 			ocOverlay[k] = v
 		}
+	}
+	if mcp, ok := overlay["mcp"].(map[string]any); ok && len(mcp) > 0 {
+		ocOverlay["mcp"] = common.UnionNestedMap([]byte(clean), "mcp", mcp)
 	}
 
 	return common.MergeJSONKeys([]byte(clean), ocOverlay)

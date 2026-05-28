@@ -144,6 +144,16 @@ func KiloModelString(p *canonical.Profile) string {
 	return GatewayProviderKey(p.Gateway.URL) + "/" + p.Gateway.DefaultModel
 }
 
+// StripProviderPrefix removes an optional leading "provider/" segment from a
+// model identifier, returning the bare model ID. "anthropic/claude-x" → "claude-x";
+// "claude-x" → "claude-x".
+func StripProviderPrefix(model string) string {
+	if _, after, found := strings.Cut(model, "/"); found {
+		return after
+	}
+	return model
+}
+
 // ProvidersAsCagentMap returns the providers block for cagent:
 // map[providerID]{base_url, token_key, provider}.
 func ProvidersAsCagentMap(p *canonical.Profile) map[string]any {
@@ -157,6 +167,17 @@ func ProvidersAsCagentMap(p *canonical.Profile) map[string]any {
 		"provider": "openai",
 	}
 	return out
+}
+
+// GooseAPIKeyEnv returns the environment-variable NAME Goose reads the API key
+// from for a given custom provider name (the `api_key_env` field). The user must
+// export this variable (or store it in Goose's keychain/secrets.yaml) with the
+// gateway token; harness-sync never writes the token itself.
+//
+//	custom_hs-llmgw-h-raczylo-com  →  CUSTOM_HS_LLMGW_H_RACZYLO_COM_API_KEY
+func GooseAPIKeyEnv(providerName string) string {
+	r := strings.NewReplacer("-", "_", ".", "_", ":", "_")
+	return strings.ToUpper(r.Replace(providerName)) + "_API_KEY"
 }
 
 // GooseCustomProviderFile returns the JSON body and provider ID for the goose
@@ -176,13 +197,8 @@ func GooseCustomProviderFile(p *canonical.Profile) ([]byte, string) {
 		})
 	}
 	if len(models) == 0 && p.Gateway.DefaultModel != "" {
-		// strip optional "provider/" prefix from DefaultModel
-		modelID := p.Gateway.DefaultModel
-		if idx := strings.IndexByte(modelID, '/'); idx >= 0 {
-			modelID = modelID[idx+1:]
-		}
 		models = append(models, map[string]any{
-			"name":          modelID,
+			"name":          StripProviderPrefix(p.Gateway.DefaultModel),
 			"context_limit": 200000,
 		})
 	}
@@ -199,16 +215,28 @@ func GooseCustomProviderFile(p *canonical.Profile) ([]byte, string) {
 		}
 	}
 
-	// Append only /chat/completions — the profile URL already contains /v1.
-	chatURL := strings.TrimRight(p.Gateway.URL, "/") + "/chat/completions"
+	// Goose's openai engine wants the full chat-completions endpoint. The
+	// profile URL is expected to already contain /v1; append /chat/completions
+	// idempotently so re-running never produces a doubled suffix.
+	chatURL := strings.TrimRight(p.Gateway.URL, "/")
+	if !strings.HasSuffix(chatURL, "/chat/completions") {
+		chatURL += "/chat/completions"
+	}
 
+	// Goose's DeclarativeProviderConfig has NO api_key field — auth is via
+	// api_key_env (the NAME of an env var Goose reads from the keychain/env) plus
+	// requires_auth. Writing api_key would be silently dropped (no
+	// deny_unknown_fields) leaving the provider unauthenticated. The token value
+	// itself is never written here (consistent with the no-secrets-in-git
+	// contract); the user supplies it via the named env var.
 	entry := map[string]any{
-		"name":         providerName,
-		"engine":       "openai",
-		"display_name": displayName,
-		"base_url":     chatURL,
-		"models":       models,
-		"api_key":      p.Gateway.Token,
+		"name":          providerName,
+		"engine":        "openai",
+		"display_name":  displayName,
+		"base_url":      chatURL,
+		"models":        models,
+		"api_key_env":   GooseAPIKeyEnv(providerName),
+		"requires_auth": p.Gateway.Token != "",
 	}
 	body, err := json.MarshalIndent(entry, "", "  ")
 	if err != nil {

@@ -76,11 +76,19 @@ func (a *Adapter) Render(b *canonical.Bundle) (*adapter.FileSet, error) {
 	if override, ok := b.Instructions.PerHarness[name]; ok && override != "" {
 		instructions = override
 	}
-	fs.Add(adapter.File{
-		Dest:    filepath.Join(base, "CLAUDE.md"),
-		Kind:    adapter.RenderedFile,
-		Content: []byte(instructions),
-	})
+	// CLAUDE.md is owned only between managed-block markers. Read any existing
+	// file and replace just our block so a user's hand-written CLAUDE.md is
+	// never clobbered. Skip emitting entirely when we have no instructions and
+	// no file exists, to avoid creating an empty file.
+	if instructions != "" {
+		claudePath := filepath.Join(base, "CLAUDE.md")
+		existing, _ := os.ReadFile(claudePath)
+		fs.Add(adapter.File{
+			Dest:    claudePath,
+			Kind:    adapter.RenderedFile,
+			Content: []byte(common.MergeManagedMarkdown(string(existing), instructions)),
+		})
+	}
 
 	// Claude Code reads MCP servers from two files on disk:
 	//   * ~/.claude.json (live, written by `claude mcp add`)
@@ -89,11 +97,13 @@ func (a *Adapter) Render(b *canonical.Bundle) (*adapter.FileSet, error) {
 	// same map into ~/.claude.json (preserving every other key in that
 	// large state file) so both stay in sync.
 	mcpMap := common.BuildMCPMapStyled(&b.MCP, common.MCPClaudeStyle)
-	overlay := map[string]any{"mcpServers": mcpMap}
 
 	dedicatedPath := filepath.Join(base, "mcp_servers.json")
 	dedicatedExisting, _ := os.ReadFile(dedicatedPath)
-	dedicatedMerged, err := common.MergeJSONKeys(dedicatedExisting, overlay)
+	// Union with the existing mcpServers map so user-added servers survive.
+	dedicatedMerged, err := common.MergeJSONKeys(dedicatedExisting, map[string]any{
+		"mcpServers": common.UnionNestedMap(dedicatedExisting, "mcpServers", mcpMap),
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -106,7 +116,9 @@ func (a *Adapter) Render(b *canonical.Bundle) (*adapter.FileSet, error) {
 	livePath := filepath.Join(a.home, ".claude.json")
 	if _, err := os.Stat(livePath); err == nil {
 		liveExisting, _ := os.ReadFile(livePath)
-		liveMerged, err := common.MergeJSONKeys(liveExisting, overlay)
+		liveMerged, err := common.MergeJSONKeys(liveExisting, map[string]any{
+			"mcpServers": common.UnionNestedMap(liveExisting, "mcpServers", mcpMap),
+		})
 		if err != nil {
 			return nil, err
 		}

@@ -1,6 +1,9 @@
 package common
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"maps"
+)
 
 // MergeJSONKeys reads existing JSON/JSONC body, overlays the given top-level
 // keys (replacing values for listed keys, preserving every other key), and
@@ -31,4 +34,25 @@ func MergeJSONKeys(existing []byte, overlay map[string]any) ([]byte, error) {
 		return nil, err
 	}
 	return append(out, '\n'), nil
+}
+
+// UnionNestedMap parses existing JSON/JSONC, reads the object nested under key,
+// and overlays ours on top (ours wins per entry name). Entries the user added
+// under key that are not in ours are PRESERVED. This is the map-valued analogue
+// of the manual provider-union the openai-compatible adapters do, so that an
+// apply never silently drops a server/entry the user added directly to the
+// target tool's config (e.g. via `claude mcp add`).
+func UnionNestedMap(existing []byte, key string, ours map[string]any) map[string]any {
+	merged := map[string]any{}
+	if len(existing) > 0 {
+		base := map[string]any{}
+		if json.Unmarshal(existing, &base) != nil {
+			_ = json.Unmarshal([]byte(StripJSONComments(string(existing))), &base)
+		}
+		if existingNested, ok := base[key].(map[string]any); ok {
+			maps.Copy(merged, existingNested)
+		}
+	}
+	maps.Copy(merged, ours)
+	return merged
 }

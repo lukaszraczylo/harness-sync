@@ -10,8 +10,47 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/lukaszraczylo/harness-sync/internal/adapter"
+	"github.com/lukaszraczylo/harness-sync/internal/adapter/common"
 	"github.com/lukaszraczylo/harness-sync/internal/canonical"
 )
+
+func TestRenderPreservesExistingCLAUDEmd(t *testing.T) {
+	home := t.TempDir()
+	base := filepath.Join(home, ".claude")
+	require.NoError(t, os.MkdirAll(base, 0o750))
+
+	// A user's hand-written CLAUDE.md must not be clobbered.
+	userContent := "# My personal Claude instructions\nNever delete my notes.\n"
+	require.NoError(t, os.WriteFile(filepath.Join(base, "CLAUDE.md"), []byte(userContent), 0o600))
+
+	ad := New(WithHome(home))
+	b := &canonical.Bundle{
+		Root:         "/canon",
+		Instructions: canonical.Instructions{Global: "canonical guidance"},
+	}
+	fs, err := ad.Render(b)
+	require.NoError(t, err)
+
+	seen := map[string]adapter.File{}
+	fs.ForEach(func(f adapter.File) { seen[f.Dest] = f })
+
+	got := string(seen[filepath.Join(base, "CLAUDE.md")].Content)
+	assert.Contains(t, got, "Never delete my notes.", "user content must be preserved")
+	assert.Contains(t, got, "canonical guidance", "managed block must be inserted")
+	assert.Contains(t, got, common.ManagedBlockBegin)
+}
+
+func TestRenderSkipsEmptyCLAUDEmd(t *testing.T) {
+	home := t.TempDir()
+	ad := New(WithHome(home))
+	b := &canonical.Bundle{Root: "/canon"} // no instructions
+	fs, err := ad.Render(b)
+	require.NoError(t, err)
+	seen := map[string]adapter.File{}
+	fs.ForEach(func(f adapter.File) { seen[f.Dest] = f })
+	_, has := seen[filepath.Join(home, ".claude", "CLAUDE.md")]
+	assert.False(t, has, "no CLAUDE.md emitted when there are no instructions")
+}
 
 func TestRenderProducesExpectedTargets(t *testing.T) {
 	home := t.TempDir()
@@ -85,10 +124,11 @@ func TestRenderMergesLiveClaudeJSON(t *testing.T) {
 	// User-managed top-level keys preserved.
 	assert.Contains(t, parsed, "projects")
 	assert.Contains(t, parsed, "shellIntegration")
-	// mcpServers replaced with canonical content.
+	// mcpServers is unioned: canonical server added, user-added server preserved
+	// (a user's `claude mcp add` entry must survive an apply).
 	mcp := parsed["mcpServers"].(map[string]any)
 	assert.Contains(t, mcp, "filepuff")
-	assert.NotContains(t, mcp, "old")
+	assert.Contains(t, mcp, "old", "user-added MCP server must be preserved, not dropped")
 	// Each entry uses Claude's "type" key.
 	fp := mcp["filepuff"].(map[string]any)
 	assert.Equal(t, "stdio", fp["type"])

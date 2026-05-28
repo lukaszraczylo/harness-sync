@@ -1,6 +1,30 @@
 package common
 
-import "maps"
+import (
+	"encoding/json"
+	"maps"
+)
+
+// MergeProviderMap parses the existing JSON/JSONC config, unions our provider
+// entries over the user's existing `provider` map (ours win per key), then
+// absorbs any duplicate providers that point at the same gateway URL. This is
+// the canonical "preserve user providers + dedup gateway" routine used by the
+// opencode-shaped adapters (opencode, kilo) so a user's hand-added providers
+// survive an apply instead of being wholesale-replaced.
+func MergeProviderMap(existing []byte, ours map[string]any, gatewayURL string) map[string]any {
+	merged := map[string]any{}
+	if len(existing) > 0 {
+		base := map[string]any{}
+		if json.Unmarshal(existing, &base) != nil {
+			_ = json.Unmarshal([]byte(StripJSONComments(string(existing))), &base)
+		}
+		if existingProv, ok := base["provider"].(map[string]any); ok {
+			maps.Copy(merged, existingProv)
+		}
+	}
+	maps.Copy(merged, ours) // ours win over a same-keyed user entry
+	return AbsorbDuplicateProviders(merged, GatewayProviderKey(gatewayURL), gatewayURL)
+}
 
 // AbsorbDuplicateProviders scans provMap for entries (other than ourKey) whose
 // options.baseURL matches gatewayURL and absorbs their models into our entry.
@@ -36,6 +60,11 @@ func AbsorbDuplicateProviders(provMap map[string]any, ourKey, gatewayURL string)
 	merged := make(map[string]any, len(ourModels))
 	maps.Copy(merged, ourModels)
 
+	// updated is our entry; we also absorb the duplicate's non-models keys into
+	// it (when absent) so user-crafted options/headers aren't silently lost.
+	updated := make(map[string]any, len(ourEntry))
+	maps.Copy(updated, ourEntry)
+
 	for k, v := range result {
 		if k == ourKey {
 			continue
@@ -51,16 +80,30 @@ func AbsorbDuplicateProviders(provMap map[string]any, ourKey, gatewayURL string)
 		if opts["baseURL"] != gatewayURL {
 			continue
 		}
-		// Same gateway URL — absorb and delete.
+		// A non-map (e.g. array-shaped) models value can't be merged into our
+		// map; keep the duplicate intact rather than silently dropping it.
+		if dm, present := entry["models"]; present {
+			if _, isMap := dm.(map[string]any); !isMap {
+				continue
+			}
+		}
+		// Same gateway URL with absorbable models — absorb and delete.
 		if dupModels, ok := entry["models"].(map[string]any); ok {
 			// Duplicate (user-crafted) wins for overlapping IDs.
 			maps.Copy(merged, dupModels)
 		}
+		// Preserve the duplicate's other keys we don't already have.
+		for ek, ev := range entry {
+			if ek == "models" {
+				continue
+			}
+			if _, exists := updated[ek]; !exists {
+				updated[ek] = ev
+			}
+		}
 		delete(result, k)
 	}
 
-	updated := make(map[string]any, len(ourEntry))
-	maps.Copy(updated, ourEntry)
 	if len(merged) > 0 {
 		updated["models"] = merged
 	}

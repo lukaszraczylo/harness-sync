@@ -103,9 +103,16 @@ func (a *Adapter) Render(b *canonical.Bundle) (*adapter.FileSet, error) {
 
 // zedLanguageModels builds language_models.openai_compatible from the profile
 // gateway. Each named entry becomes its own provider in Zed's Agent panel.
-// API key is read by Zed from env var HARNESS_SYNC_GATEWAY_API_KEY at runtime.
+// The gateway token is written inline as api_key, matching every other
+// provider adapter and the dummy/${VAR} contract (apply does not resolve
+// ${VAR}; Zed/the downstream resolves it).
+// NOTE: confirm api_key is the field Zed's openai_compatible schema reads; Zed
+// may also accept keys via its Agent panel UI (stored in the OS keychain).
 func zedLanguageModels(p *canonical.Profile) map[string]any {
 	entry := map[string]any{"api_url": p.Gateway.URL}
+	if p.Gateway.Token != "" {
+		entry["api_key"] = p.Gateway.Token
+	}
 	if len(p.Models) > 0 {
 		models := make([]map[string]any, 0, len(p.Models))
 		for _, m := range p.Models {

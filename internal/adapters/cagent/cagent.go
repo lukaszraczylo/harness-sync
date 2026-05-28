@@ -67,23 +67,18 @@ func (a *Adapter) Render(b *canonical.Bundle) (*adapter.FileSet, error) {
 		instructions = override
 	}
 
-	mcps := map[string]any{}
-	for _, s := range b.MCP.Servers {
-		e := map[string]any{}
-		if s.Command != "" {
-			e["command"] = s.Command
-		}
-		args := s.Args
-		if args == nil {
-			args = []string{}
-		}
-		e["args"] = args
-		mcps[s.Name] = e
-	}
+	// Use the shared MCP builder so URL/Transport/Env are not dropped (a bare
+	// inline loop would render remote/SSE servers as an unusable {"args":[]}).
+	mcps := common.BuildMCPMap(&b.MCP)
 
 	provKey := common.GatewayProviderKey(b.Profile.Gateway.URL)
-	// inline model shorthand: "providerID/modelID"
-	modelRef := common.KiloModelString(&b.Profile)
+	// Bare model ID (strip any "provider/" prefix) + the inline "providerID/modelID"
+	// shorthand for the agent, so a prefixed DefaultModel can't double-qualify.
+	bareModel := common.StripProviderPrefix(b.Profile.Gateway.DefaultModel)
+	modelRef := ""
+	if b.Profile.Gateway.DefaultModel != "" {
+		modelRef = provKey + "/" + bareModel
+	}
 
 	cfg := map[string]any{
 		"version": 8,
@@ -100,7 +95,7 @@ func (a *Adapter) Render(b *canonical.Bundle) (*adapter.FileSet, error) {
 		"models": map[string]any{
 			provKey: map[string]any{
 				"provider": provKey,
-				"model":    b.Profile.Gateway.DefaultModel,
+				"model":    bareModel,
 			},
 		},
 	}

@@ -98,9 +98,9 @@ func (a *Adapter) Render(b *canonical.Bundle) (*adapter.FileSet, error) {
 		"GOOSE_MODEL":    model,
 	}
 
-	if len(b.MCP.Servers) > 0 {
-		extensions := buildExtensions(b.MCP.Servers)
-		overlay["extensions"] = extensions
+	if extensions := buildExtensions(b.MCP.Servers); len(extensions) > 0 {
+		// Union with existing so user-added extensions survive an apply.
+		overlay["extensions"] = common.UnionNestedMapYAML(existing, "extensions", extensions)
 	}
 
 	merged, err := common.MergeYAMLKeys(existing, overlay)
@@ -118,21 +118,36 @@ func (a *Adapter) Render(b *canonical.Bundle) (*adapter.FileSet, error) {
 }
 
 // buildExtensions converts canonical MCP servers to goose extension entries.
+// Remote (URL) servers become a remote extension instead of a broken stdio
+// entry; servers with neither command nor URL are skipped (nothing launchable).
 func buildExtensions(servers []canonical.MCPServer) map[string]any {
 	out := map[string]any{}
 	for _, s := range servers {
-		e := map[string]any{
-			"enabled": true,
-			"type":    "stdio",
-		}
-		if s.Command != "" {
+		e := map[string]any{"enabled": true}
+		switch {
+		case s.URL != "":
+			// Remote extension. Goose uses type sse|streamable_http with the
+			// endpoint under "uri". NEEDS-VERIFICATION against goose's current
+			// extension schema; honour Transport when the profile sets it.
+			t := s.Transport
+			if t == "" {
+				t = "sse"
+			}
+			e["type"] = t
+			e["uri"] = s.URL
+		case s.Command != "":
+			e["type"] = "stdio"
 			e["cmd"] = s.Command
+			args := s.Args
+			if args == nil {
+				args = []string{}
+			}
+			e["args"] = args
+		default:
+			// No URL and no command: not launchable — skip rather than emit a
+			// stdio entry with an empty cmd.
+			continue
 		}
-		args := s.Args
-		if args == nil {
-			args = []string{}
-		}
-		e["args"] = args
 		if len(s.Env) > 0 {
 			e["env"] = s.Env
 		}

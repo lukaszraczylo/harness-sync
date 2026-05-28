@@ -19,10 +19,40 @@ type Doc struct {
 	Path        string
 }
 
+// Managed-block markers delimit the region of an instruction file that
+// harness-sync owns. Everything outside the markers is user content and is
+// preserved verbatim across applies.
+const (
+	ManagedBlockBegin = "<!-- BEGIN harness-sync (managed) — do not edit between markers -->"
+	ManagedBlockEnd   = "<!-- END harness-sync (managed) -->"
+)
+
+// MergeManagedMarkdown returns existing content with the harness-sync managed
+// block inserted or replaced, preserving all user content outside the markers.
+//   - No existing content: returns just the managed block.
+//   - Existing markers present: replaces only the region between them.
+//   - Existing content without markers: appends the managed block after the
+//     user's content (never overwrites it).
+//
+// managed is the canonical instruction text harness-sync owns.
+func MergeManagedMarkdown(existing, managed string) string {
+	block := ManagedBlockBegin + "\n" + strings.TrimRight(managed, "\n") + "\n" + ManagedBlockEnd
+	if strings.TrimSpace(existing) == "" {
+		return block + "\n"
+	}
+	bi := strings.Index(existing, ManagedBlockBegin)
+	ei := strings.Index(existing, ManagedBlockEnd)
+	if bi >= 0 && ei > bi {
+		return existing[:bi] + block + existing[ei+len(ManagedBlockEnd):]
+	}
+	return strings.TrimRight(existing, "\n") + "\n\n" + block + "\n"
+}
+
 // ParseFrontmatter extracts the name and description fields from a markdown
 // file's YAML frontmatter block. Returns ("", "") when there is no frontmatter.
+// CRLF line endings are normalised so Windows-authored files parse correctly.
 func ParseFrontmatter(b []byte) (name, description string) {
-	s := string(b)
+	s := strings.ReplaceAll(string(b), "\r\n", "\n")
 	if !strings.HasPrefix(s, "---\n") {
 		return "", ""
 	}
@@ -34,7 +64,9 @@ func ParseFrontmatter(b []byte) (name, description string) {
 		Name        string `yaml:"name"`
 		Description string `yaml:"description"`
 	}
-	_ = yaml.Unmarshal([]byte(s[4:4+end]), &meta)
+	if err := yaml.Unmarshal([]byte(s[4:4+end]), &meta); err != nil {
+		return "", ""
+	}
 	return meta.Name, meta.Description
 }
 
