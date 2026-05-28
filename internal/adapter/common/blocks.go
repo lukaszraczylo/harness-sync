@@ -273,6 +273,9 @@ func BuildMCPMap(reg *canonical.MCPRegistry) map[string]any {
 		return out
 	}
 	for _, s := range reg.Servers {
+		if s.Command == "" && s.URL == "" {
+			continue // not launchable — skip rather than emit a junk entry
+		}
 		e := map[string]any{}
 		if s.Command != "" {
 			e["command"] = s.Command

@@ -21,6 +21,9 @@ func BuildMCPMapStyled(reg *canonical.MCPRegistry, style MCPStyle) map[string]an
 		return out
 	}
 	for _, s := range reg.Servers {
+		if s.Command == "" && s.URL == "" {
+			continue // not launchable — skip rather than emit a junk entry
+		}
 		out[s.Name] = mcpEntry(s, style)
 	}
 	return out

@@ -90,3 +90,19 @@ func TestBuildMCPMapStyledNilReg(t *testing.T) {
 	assert.NotNil(t, out)
 	assert.Len(t, out, 0)
 }
+
+func TestBuildMCPMapStyledSkipsUnlaunchable(t *testing.T) {
+	// A server with neither command nor URL is not launchable and must be
+	// skipped rather than emitted as a junk {"type":"stdio"} entry.
+	r := reg(
+		canonical.MCPServer{Name: "good", Command: "/bin/good"},
+		canonical.MCPServer{Name: "junk"},
+	)
+	for _, style := range []MCPStyle{MCPClaudeStyle, MCPCrushStyle, MCPOpencodeStyle} {
+		out := BuildMCPMapStyled(r, style)
+		assert.Contains(t, out, "good")
+		assert.NotContains(t, out, "junk")
+	}
+	// BuildMCPMap (cagent) applies the same guard.
+	assert.NotContains(t, BuildMCPMap(r), "junk")
+}
