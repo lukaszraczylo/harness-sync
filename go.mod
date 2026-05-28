@@ -4,7 +4,7 @@ go 1.25
 
 require (
 	github.com/charmbracelet/huh v1.0.0
-	github.com/pelletier/go-toml/v2 v2.2.3
+	github.com/lukaszraczylo/oss-telemetry v0.2.1
 	github.com/spf13/afero v1.15.0
 	github.com/spf13/cobra v1.8.1
 	github.com/stretchr/testify v1.9.0
@@ -28,7 +28,6 @@ require (
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/lucasb-eyer/go-colorful v1.2.0 // indirect
-	github.com/lukaszraczylo/oss-telemetry v0.2.1 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-localereader v0.0.1 // indirect
 	github.com/mattn/go-runewidth v0.0.16 // indirect

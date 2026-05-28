@@ -12,8 +12,6 @@ const (
 	MCPCrushStyle
 	// MCPOpencodeStyle: kilo + opencode shape — type: local|remote, command as []string.
 	MCPOpencodeStyle
-	// MCPZedStyle: zed context_servers — {enabled, command, args} or {enabled, url}.
-	MCPZedStyle
 )
 
 // BuildMCPMapStyled returns the MCP map for the given harness dialect.
@@ -73,20 +71,6 @@ func mcpEntry(s canonical.MCPServer, style MCPStyle) map[string]any {
 			}
 		}
 		e["enabled"] = true
-	case MCPZedStyle:
-		// Do NOT emit "enabled" — Zed 1.3.x has a serde flatten+deny_unknown_fields
-		// bug where outer-struct fields bleed into the untagged enum variants and
-		// fail all of them. Omitting "enabled" defaults to true.
-		if s.URL != "" {
-			e["url"] = s.URL
-		} else {
-			if s.Command != "" {
-				e["command"] = s.Command
-			}
-			if len(s.Args) > 0 {
-				e["args"] = s.Args
-			}
-		}
 	}
 	return e
 }

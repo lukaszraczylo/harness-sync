@@ -78,12 +78,3 @@ type Bundle struct {
 	Agents       []Agent
 	MCP          MCPRegistry
 }
-
-func (p *Profile) LookupModel(alias string) (Model, bool) {
-	for _, m := range p.Models {
-		if m.Alias == alias || m.ID == alias {
-			return m, true
-		}
-	}
-	return Model{}, false
-}

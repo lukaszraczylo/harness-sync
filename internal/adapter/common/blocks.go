@@ -4,12 +4,25 @@ package common
 import (
 	"encoding/json"
 	"net/url"
+	"regexp"
 	"strings"
 
 	"github.com/lukaszraczylo/harness-sync/internal/canonical"
 )
 
 const fallbackGatewayProviderID = "harness-sync-gateway"
+
+var envPlaceholderRe = regexp.MustCompile(`\$\{([A-Za-z_][A-Za-z0-9_]*)\}`)
+
+// toOpencodeEnvRef rewrites shell-style ${VAR} placeholders into opencode's
+// {env:VAR} substitution syntax, leaving literal values untouched. opencode —
+// and kilo, which reads opencode.jsonc — expands {env:VAR} at load time and does
+// not understand ${VAR}. This translates the placeholder dialect without
+// resolving the secret (the value stays a placeholder, honouring the apply
+// no-secrets-in-git contract).
+func toOpencodeEnvRef(s string) string {
+	return envPlaceholderRe.ReplaceAllString(s, "{env:$1}")
+}
 
 // GatewayProviderKey returns a stable provider key derived from the gateway URL.
 // Format: "hs-<hostname>" with dots and special chars normalised to dashes.
@@ -31,10 +44,12 @@ func GatewayProviderKey(gatewayURL string) string {
 }
 
 // crushModel builds a 10-field model entry required by the crush schema.
-func crushModel(id string) map[string]any {
+// id is the wire model identifier; name is the human-facing label (the alias
+// when set, mirroring how zed/opencode surface aliases).
+func crushModel(id, name string) map[string]any {
 	return map[string]any{
 		"id":                     id,
-		"name":                   id,
+		"name":                   name,
 		"cost_per_1m_in":         0,
 		"cost_per_1m_out":        0,
 		"cost_per_1m_in_cached":  0,
@@ -56,10 +71,14 @@ func ProvidersAsCrushMap(p *canonical.Profile) map[string]any {
 	}
 	models := make([]map[string]any, 0)
 	for _, m := range p.Models {
-		models = append(models, crushModel(m.ID))
+		name := m.ID
+		if m.Alias != "" {
+			name = m.Alias
+		}
+		models = append(models, crushModel(m.ID, name))
 	}
 	if len(models) == 0 && p.Gateway.DefaultModel != "" {
-		models = append(models, crushModel(p.Gateway.DefaultModel))
+		models = append(models, crushModel(p.Gateway.DefaultModel, p.Gateway.DefaultModel))
 	}
 	out[GatewayProviderKey(p.Gateway.URL)] = map[string]any{
 		"type":     "openai-compat",
@@ -109,7 +128,7 @@ func ProvidersAsMap(p *canonical.Profile) map[string]any {
 			"npm":  "@ai-sdk/openai-compatible",
 			"options": map[string]any{
 				"baseURL": p.Gateway.URL,
-				"apiKey":  p.Gateway.Token,
+				"apiKey":  toOpencodeEnvRef(p.Gateway.Token),
 			},
 		}
 		if len(models) > 0 {
@@ -126,7 +145,7 @@ func ProvidersAsMap(p *canonical.Profile) map[string]any {
 			opts["baseURL"] = up.BaseURL
 		}
 		if up.APIKey != "" {
-			opts["apiKey"] = up.APIKey
+			opts["apiKey"] = toOpencodeEnvRef(up.APIKey)
 		}
 		if len(opts) > 0 {
 			entry["options"] = opts

@@ -141,7 +141,7 @@ harness-sync goes out of its way to avoid.
 | **opencode** | `~/.config/opencode/opencode.jsonc` (merged) | `mcp` (`type: local`/`remote`) | `provider` map + `model` | `~/.config/opencode/skills/` |
 | **goose** | `~/.config/goose/config.yaml` (merged) + `custom_providers/<name>.json` | `extensions` map (`type: stdio`) | `GOOSE_PROVIDER` + `GOOSE_MODEL` | `~/.agents/skills/` |
 | **cagent** | `~/.config/cagent/default.yaml` (starter) | `mcps` | `providers` map + per-agent `model:` | — |
-| **zed** | `~/.config/zed/settings.json` (merged) | `context_servers` | `language_models.openai.{api_url, available_models}` + `agent.default_model` | — |
+| **zed** | `~/.config/zed/settings.json` (merged) | — (`context_servers` cleared — see note) | `language_models.openai_compatible.{api_url, api_key, available_models}` + `agent.default_model` | — |
 
 ### Capability matrix
 
@@ -157,9 +157,9 @@ Skills paths are grounded in each harness's official documentation (kilo.ai, ope
 | **opencode** | — | ✓ | ✓ | ✓ | ✓ | ✓ |
 | **goose** | — | ✓ | ✓ | ✓ | ✓ | — |
 | **cagent** | — | ✓ | ✓ | ✓ | — | ✓ |
-| **zed** | — | ✓ | ✓ | ✓ | — | — |
+| **zed** | — | ✓ | ✓ | — | — | — |
 
-The matrix is machine-readable via `adapter.Capabilities()` — every adapter implements `HarnessCapabilities` so tooling can inspect what will change before running `apply`.
+The matrix is machine-readable via `adapter.Capabilities()` — every adapter implements `HarnessCapabilities`. Run `harness-sync adapter list` to print each adapter's capabilities (and whether it is detected) before running `apply`. Zed's MCP is intentionally not managed: writing `context_servers` triggered a serde parse error in Zed, so the adapter clears that key instead.
 
 > **Merged, not replaced.** For harnesses with user-managed config keys (every one
 > except cagent), harness-sync reads the existing file, overlays only the keys
@@ -204,7 +204,7 @@ Every command accepts `--root <path>` to point at a non-default canonical tree.
 - **First-run prompt.** The first `apply` against detected harnesses asks for confirmation before moving existing files to backups and replacing them with symlinks. Use `--yes` (or run non-interactively in CI) to skip.
 - **Profile completeness.** `apply` refuses to proceed when the active profile's `gateway.url` or `gateway.default_model` is empty. The placeholder profile written by `init` is left blank on purpose — edit `profiles/imported.yaml` before applying. `--allow-incomplete` lifts the guard for tests.
 - **Init guard.** `init` refuses to overwrite an already-initialised canonical tree. Use `--force` to merge new harness imports into existing skills/agents/MCP without clobbering edits.
-- **Env-var substitution.** `${VAR}` references in profiles and the MCP registry are resolved against the process environment at apply time. A missing variable aborts the run with an explicit error — secrets never silently fall back to empty.
+- **Env-var placeholders are preserved, not resolved.** `${VAR}` references in profiles and the MCP registry are written through to the rendered target files verbatim — harness-sync never resolves them, so real secret values are never baked into the rendered configs or the git-tracked `state/` snapshots. Each downstream harness expands the placeholder at its own config-load time. (opencode/kilo use `{env:VAR}` syntax; harness-sync translates `${VAR}` → `{env:VAR}` for those targets automatically.)
 
 ---
 
@@ -223,7 +223,7 @@ gateway:
   default_model: claude-sonnet-4-6
 upstreams:
   - name: anthropic
-    api_key: ${ANTHROPIC_API_KEY}     # env-var substitution at render time
+    api_key: ${ANTHROPIC_API_KEY}     # placeholder preserved; resolved by the harness
   - name: openai
     api_key: ${OPENAI_API_KEY}
   - name: ollama
@@ -236,8 +236,9 @@ models:
 ```
 
 Dummy gateway tokens may be plaintext (they have no value if leaked).
-Real provider keys **must** be `${VAR}` references — harness-sync substitutes
-at render time so the canonical tree never contains plaintext secrets.
+Real provider keys **must** be `${VAR}` references — harness-sync writes the
+placeholder through unresolved, so the canonical tree and the rendered configs
+never contain plaintext secrets; each harness expands the reference at use time.
 
 ```bash
 harness-sync profile use work        # switch the active profile…
@@ -267,15 +268,18 @@ Resolve a `.rej`: open it, copy the bits you want into the target, delete the
 `.rej`, run `apply` again. No bespoke conflict format — it's `<<<<<<<` markers
 from `git merge-file`.
 
-Roll back the last N applies: `harness-sync rollback 1` calls `git revert` on
-the canonical repo, then re-renders.
+Roll back the last N applies: `harness-sync rollback 1` reverts the last N
+commits in the canonical repo with `git revert`, then re-applies (force) so the
+reverted state is propagated back out to the harness target files — a bare
+revert would only move the in-repo `state/` snapshots. N must be less than the
+number of apply commits.
 
 ---
 
 ## Architecture
 
-A single Go binary, ~5000 LOC across 18 packages, 93 tests including an
-end-to-end test that runs the real binary against a fake `$HOME`.
+A single Go binary across ~16 internal packages, with an end-to-end test that
+runs the real binary against a fake `$HOME`.
 
 ```
 cmd/harness-sync/main.go              # cobra entrypoint + adapter registration
@@ -286,8 +290,7 @@ internal/adapters/<harness>/          # one package per harness, ~50-100 LOC of 
 internal/apply/                       # render → 3-way merge → write pipeline + state snapshots
 internal/merge/                       # git merge-file wrapper
 internal/gitx/                        # thin shell wrapper over the git CLI
-internal/render/                      # deterministic JSON / YAML / TOML marshallers
-internal/secrets/                     # ${VAR} substitution with strict missing-key error
+internal/render/                      # deterministic YAML marshaller
 internal/cli/                         # cobra subcommands (detect, show, init, apply, diff, profile, rollback, adapter)
 internal/ui/                          # huh-backed multi-select with non-interactive override for tests
 tests/e2e/                            # binary-level integration test
@@ -296,8 +299,8 @@ tests/e2e/                            # binary-level integration test
 DRY: the four pre-existing claude-code-like harnesses share `BuildProviders`,
 `ProvidersAsMap`, `BuildMCPMapStyled`, `MergeJSONKeys`, `ImportMarkdownTree`,
 `ParseFrontmatter`, and `StripJSONComments` from `internal/adapter/common/`.
-The four MCP dialects (claude / crush / opencode / zed) sit in one switch,
-so the right `type:` discriminator goes to the right harness.
+The MCP dialects (claude / crush / opencode) sit in one switch, so the right
+`type:` discriminator goes to the right harness.
 
 ---
 
@@ -307,7 +310,8 @@ so the right `type:` discriminator goes to the right harness.
 - **Plan:** [`docs/superpowers/plans/2026-05-23-harness-sync.md`](docs/superpowers/plans/2026-05-23-harness-sync.md) — 26-task TDD implementation plan
 
 Non-goals (v1): watcher daemon, GUI, remote sync (push the canonical git repo
-yourself), keychain integration beyond env-var substitution.
+yourself), keychain integration (harness-sync writes `${VAR}` placeholders and
+leaves resolution to each harness).
 
 ---
 

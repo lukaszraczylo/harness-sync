@@ -110,6 +110,34 @@ func TestAbsorbDuplicateProvidersPreservesArrayModels(t *testing.T) {
 	assert.Contains(t, out, "dup", "array-shaped-models duplicate preserved, not dropped")
 }
 
+func TestProvidersAsMapTranslatesEnvPlaceholder(t *testing.T) {
+	p := &canonical.Profile{
+		Gateway: canonical.Gateway{URL: "https://gw", Token: "${LLM_TOKEN}"},
+	}
+	m := ProvidersAsMap(p)
+	opts := m["hs-gw"].(map[string]any)["options"].(map[string]any)
+	assert.Equal(t, "{env:LLM_TOKEN}", opts["apiKey"], "opencode dialect is {env:VAR}, not ${VAR}")
+
+	t.Run("literal token left untouched", func(t *testing.T) {
+		p := &canonical.Profile{Gateway: canonical.Gateway{URL: "https://gw", Token: "dummy"}}
+		m := ProvidersAsMap(p)
+		opts := m["hs-gw"].(map[string]any)["options"].(map[string]any)
+		assert.Equal(t, "dummy", opts["apiKey"])
+	})
+}
+
+func TestProvidersAsCrushMapHonoursAlias(t *testing.T) {
+	p := &canonical.Profile{
+		Gateway: canonical.Gateway{URL: "https://gw", Token: "t"},
+		Models:  []canonical.Model{{ID: "claude-sonnet-4-6", Alias: "sonnet"}},
+	}
+	m := ProvidersAsCrushMap(p)
+	models := m["hs-gw"].(map[string]any)["models"].([]map[string]any)
+	require.Len(t, models, 1)
+	assert.Equal(t, "claude-sonnet-4-6", models[0]["id"], "wire id stays the model ID")
+	assert.Equal(t, "sonnet", models[0]["name"], "label uses the alias")
+}
+
 func TestGooseCustomProviderFileSchema(t *testing.T) {
 	p := &canonical.Profile{
 		Gateway: canonical.Gateway{URL: "https://gw/v1", Token: "tok", DefaultModel: "anthropic/sonnet"},

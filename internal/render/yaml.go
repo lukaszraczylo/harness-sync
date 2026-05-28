@@ -1,3 +1,4 @@
+// Package render holds deterministic format marshallers.
 package render
 
 import "gopkg.in/yaml.v3"

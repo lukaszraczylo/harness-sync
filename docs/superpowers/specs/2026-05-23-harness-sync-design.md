@@ -83,7 +83,7 @@ gateway:
   default_model: claude-sonnet-4-6
 upstreams:                            # informational: gateway already knows these; harnesses see only models
   - name: anthropic
-    api_key: ${ANTHROPIC_API_KEY}     # env-var substitution, never plaintext for real keys
+    api_key: ${ANTHROPIC_API_KEY}     # placeholder preserved; resolved by the harness, never plaintext
   - name: openai
     api_key: ${OPENAI_API_KEY}
   - name: openrouter
@@ -99,7 +99,7 @@ models:                               # allowlist exposed to harnesses
     alias: gpt
 ```
 
-Secret handling: dummy gateway token is plaintext (no value if leaked). Any real provider keys reference env vars via `${VAR}`. `harness-sync apply` substitutes at render time; canonical files never contain plaintext provider keys.
+Secret handling: dummy gateway token is plaintext (no value if leaked). Any real provider keys reference env vars via `${VAR}`. harness-sync does NOT resolve `${VAR}` — it writes the placeholder through to the rendered configs verbatim (translating to `{env:VAR}` for opencode/kilo), so neither the canonical tree nor the rendered files nor the git-tracked `state/` snapshots ever contain plaintext provider keys; each harness resolves the reference at use time.
 
 ## Adapter interface
 

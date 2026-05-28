@@ -1,7 +1,10 @@
 package canonical
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -56,7 +59,13 @@ func LoadFS(fs fsx.FS, root string) (*Bundle, error) {
 		}
 	}
 
-	skills, err := loadMarkdownDirFS(fs, filepath.Join(root, "skills"), "SKILL.md")
+	// Source directories honour Config.Paths overrides (relative to root, or
+	// absolute), falling back to the conventional layout.
+	skillsDir := resolvePath(root, b.Config.Paths.Skills, "skills")
+	agentsDir := resolvePath(root, b.Config.Paths.Agents, "agents")
+	instructionsDir := resolvePath(root, b.Config.Paths.Instructions, "instructions")
+
+	skills, err := loadMarkdownDirFS(fs, skillsDir, "SKILL.md")
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +73,7 @@ func LoadFS(fs fsx.FS, root string) (*Bundle, error) {
 		b.Skills = append(b.Skills, Skill(m))
 	}
 
-	agents, err := loadMarkdownDirFS(fs, filepath.Join(root, "agents"), "")
+	agents, err := loadMarkdownDirFS(fs, agentsDir, "")
 	if err != nil {
 		return nil, err
 	}
@@ -73,13 +82,13 @@ func LoadFS(fs fsx.FS, root string) (*Bundle, error) {
 	}
 
 	b.Instructions.PerHarness = map[string]string{}
-	body, err := readFileIfExistsFS(fs, filepath.Join(root, "instructions", "global.md"))
+	body, err := readFileIfExistsFS(fs, filepath.Join(instructionsDir, "global.md"))
 	if err != nil {
 		return nil, err
 	}
 	b.Instructions.Global = body
 
-	perHarnessDir := filepath.Join(root, "instructions", "per-harness")
+	perHarnessDir := filepath.Join(instructionsDir, "per-harness")
 	if dirExistsFS(fs, perHarnessDir) {
 		dir, err := fs.Open(perHarnessDir)
 		if err != nil {
@@ -154,8 +163,20 @@ func loadMarkdownDirFS(fs fsx.FS, dir, requiredFilename string) ([]markdownDoc, 
 	return docs, err
 }
 
+// resolvePath returns custom (relative to root, or used as-is when absolute)
+// when set, else the conventional path under root from defaults.
+func resolvePath(root, custom string, defaults ...string) string {
+	if custom != "" {
+		if filepath.IsAbs(custom) {
+			return custom
+		}
+		return filepath.Join(root, custom)
+	}
+	return filepath.Join(append([]string{root}, defaults...)...)
+}
+
 func parseFrontmatter(b []byte) (name, description string) {
-	s := string(b)
+	s := strings.ReplaceAll(string(b), "\r\n", "\n")
 	if !strings.HasPrefix(s, "---\n") {
 		return "", ""
 	}
@@ -168,16 +189,23 @@ func parseFrontmatter(b []byte) (name, description string) {
 		Name        string `yaml:"name"`
 		Description string `yaml:"description"`
 	}
-	_ = yaml.Unmarshal([]byte(fm), &meta)
+	if err := yaml.Unmarshal([]byte(fm), &meta); err != nil {
+		return "", ""
+	}
 	return meta.Name, meta.Description
 }
 
-func loadYAMLFS(fs fsx.FS, path string, out interface{}) error {
+func loadYAMLFS(fs fsx.FS, path string, out any) error {
 	b, err := afero.ReadFile(fs, path)
 	if err != nil {
 		return fmt.Errorf("read %s: %w", path, err)
 	}
-	if err := yaml.Unmarshal(b, out); err != nil {
+	// Strict decode: reject unknown/misspelled keys instead of silently leaving
+	// the corresponding field at its zero value (which would render a wrong
+	// config for the user's tools). io.EOF means an empty document — fine.
+	dec := yaml.NewDecoder(bytes.NewReader(b))
+	dec.KnownFields(true)
+	if err := dec.Decode(out); err != nil && !errors.Is(err, io.EOF) {
 		return fmt.Errorf("parse %s: %w (check YAML syntax and field names)", path, err)
 	}
 	return nil

@@ -35,11 +35,6 @@ func DirExistsFS(fs fsx.FS, path string) bool {
 	return err == nil && info.IsDir()
 }
 
-// DirExists reports whether path is an existing directory.
-func DirExists(path string) bool {
-	return DirExistsFS(fsx.OS(), path)
-}
-
 var trailingComma = regexp.MustCompile(`,(\s*[}\]])`)
 
 // StripJSONComments converts JSONC to standard JSON by:
