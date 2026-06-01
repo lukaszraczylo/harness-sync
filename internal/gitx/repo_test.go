@@ -41,3 +41,33 @@ func TestShowFileAtHead(t *testing.T) {
 	_, err = r.ShowFileAtHead("nope.txt")
 	assert.Error(t, err)
 }
+
+func TestHasStagedChangesEmptyAfterInit(t *testing.T) {
+	dir := t.TempDir()
+	r := New(dir)
+	require.NoError(t, r.Init())
+	require.NoError(t, r.Configure("nobody", "nobody@example.com"))
+	// No commits yet, working tree clean.
+	dirty, err := r.HasStagedChanges()
+	require.NoError(t, err)
+	assert.False(t, dirty)
+}
+
+func TestHasStagedChangesAfterAdd(t *testing.T) {
+	dir := t.TempDir()
+	r := New(dir)
+	require.NoError(t, r.Init())
+	require.NoError(t, r.Configure("nobody", "nobody@example.com"))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "a.txt"), []byte("x"), 0o600))
+	require.NoError(t, r.AddAll())
+
+	dirty, err := r.HasStagedChanges()
+	require.NoError(t, err)
+	assert.True(t, dirty)
+
+	// After commit, index matches HEAD again → no staged changes.
+	require.NoError(t, r.Commit("c"))
+	dirty, err = r.HasStagedChanges()
+	require.NoError(t, err)
+	assert.False(t, dirty)
+}

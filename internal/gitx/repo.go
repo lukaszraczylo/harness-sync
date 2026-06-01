@@ -71,6 +71,17 @@ func (r *Repo) IsRepo() bool {
 	return err == nil
 }
 
+// HasStagedChanges reports whether the index currently differs from HEAD.
+// Used by callers that want to skip a no-op `git commit` (commit exits 1
+// when there is nothing to commit, which is the wrong signal to propagate).
+func (r *Repo) HasStagedChanges() (bool, error) {
+	b, err := r.run("status", "--porcelain")
+	if err != nil {
+		return false, err
+	}
+	return len(bytes.TrimSpace(b)) > 0, nil
+}
+
 // Revert undoes the last N commits with `git revert --no-edit HEAD~N..HEAD`.
 // n must be >= 1.
 func (r *Repo) Revert(n int) error {

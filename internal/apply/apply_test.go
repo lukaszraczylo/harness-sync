@@ -585,6 +585,160 @@ func TestApplyUnknownFileKind(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// TestApplyPropagatesReadErrors — regression for the silent-read footgun.
+// A target file in a directory we can no longer read must surface as an
+// error from Run, not as a fast-forward overwrite.
+// ---------------------------------------------------------------------------
+
+func TestApplyPropagatesReadErrors(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("running as root; cannot test permission denial")
+	}
+	root := t.TempDir()
+	targetDir := t.TempDir()
+	target := filepath.Join(targetDir, "out.txt")
+	require.NoError(t, os.WriteFile(target, []byte("user-content\n"), 0o600))
+	require.NoError(t, initCanonical(root))
+
+	// Strip read perms on the target's parent so os.ReadFile fails.
+	require.NoError(t, os.Chmod(targetDir, 0o000))
+	t.Cleanup(func() { _ = os.Chmod(targetDir, 0o755) })
+
+	ad := &stubAdapter{name: "stub", files: []adapter.File{
+		{Dest: target, Kind: adapter.RenderedFile, Content: []byte("new-render\n")},
+	}}
+	_, err := Run(Options{
+		Bundle:   &canonical.Bundle{Root: root},
+		Adapters: []adapter.Adapter{ad},
+		Repo:     gitx.New(root),
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "read target")
+
+	// User's on-disk file must be untouched.
+	_ = os.Chmod(targetDir, 0o755)
+	body, rerr := os.ReadFile(target)
+	require.NoError(t, rerr)
+	assert.Equal(t, "user-content\n", string(body),
+		"target must not be overwritten when read fails")
+}
+
+// ---------------------------------------------------------------------------
+// TestApplyAutoOpensRepoFromBundleRoot — regression: callers no longer need
+// to pre-construct a *gitx.Repo. Run opens one from Bundle.Root, skips
+// commit gracefully when the root is not a git repo, and commits when it is.
+// ---------------------------------------------------------------------------
+
+func TestApplyAutoOpensRepoFromBundleRoot(t *testing.T) {
+	root := t.TempDir()
+	target := filepath.Join(t.TempDir(), "out.txt")
+	require.NoError(t, initCanonical(root))
+
+	ad := &stubAdapter{name: "stub", files: []adapter.File{
+		{Dest: target, Kind: adapter.RenderedFile, Content: []byte("auto\n")},
+	}}
+	// Intentionally pass Repo: nil — the new behaviour should open one itself.
+	rep, err := Run(Options{
+		Bundle:   &canonical.Bundle{Root: root},
+		Adapters: []adapter.Adapter{ad},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, 1, rep.Written)
+
+	// git log should have a new commit from apply, on top of the init one.
+	out, gitErr := runGit(root, "log", "--oneline")
+	require.NoError(t, gitErr)
+	assert.GreaterOrEqual(t, countLines(out), 2)
+}
+
+// ---------------------------------------------------------------------------
+// TestApplyNoRepoSkipsCommit — when Bundle.Root isn't a git repo, Run must
+// still succeed (no error, no commit attempt). One-off renders / dry-runs.
+// ---------------------------------------------------------------------------
+
+func TestApplyNoRepoSkipsCommit(t *testing.T) {
+	root := t.TempDir() // NOT initCanonical — no .git
+	target := filepath.Join(t.TempDir(), "out.txt")
+
+	ad := &stubAdapter{name: "stub", files: []adapter.File{
+		{Dest: target, Kind: adapter.RenderedFile, Content: []byte("x\n")},
+	}}
+	rep, err := Run(Options{
+		Bundle:   &canonical.Bundle{Root: root},
+		Adapters: []adapter.Adapter{ad},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, 1, rep.Written)
+	body, rerr := os.ReadFile(target)
+	require.NoError(t, rerr)
+	assert.Equal(t, "x\n", string(body))
+}
+
+// ---------------------------------------------------------------------------
+// TestApplySkipsNoOpCommit — symlinks at a path outside the canonical repo
+// do not write a state snapshot inside the repo (handleSymlink has no
+// state-tracking), so git has nothing to commit. apply.Run must detect
+// "no staged changes" and skip the commit instead of failing with
+// "nothing to commit" from git itself.
+// ---------------------------------------------------------------------------
+
+func TestApplySkipsNoOpCommit(t *testing.T) {
+	root := t.TempDir()
+	require.NoError(t, initCanonical(root))
+	targetDir := t.TempDir()
+	target := filepath.Join(targetDir, "outside-link")
+	real := filepath.Join(targetDir, "real.txt")
+	require.NoError(t, os.WriteFile(real, []byte("real\n"), 0o600))
+
+	ad := &stubAdapter{name: "stub", files: []adapter.File{
+		{Dest: target, Kind: adapter.SymlinkFile, SymlinkTarget: real},
+	}}
+	rep, err := Run(Options{
+		Bundle:   &canonical.Bundle{Root: root},
+		Adapters: []adapter.Adapter{ad},
+		// Repo: nil — auto-open from Bundle.Root (which IS a git repo).
+	})
+	require.NoError(t, err)
+	assert.Equal(t, 1, rep.Written)
+
+	// Symlink exists on disk.
+	got, lerr := os.Readlink(target)
+	require.NoError(t, lerr)
+	assert.Equal(t, real, got)
+
+	// No extra commit — still just the init commit. A failed "nothing to
+	// commit" would surface here as an error from Run.
+	out, gitErr := runGit(root, "log", "--oneline")
+	require.NoError(t, gitErr)
+	assert.Equal(t, 1, countLines(out),
+		"expected only the init commit; symlink outside canonical root should not create one")
+}
+
+// ---------------------------------------------------------------------------
+// TestApplyCommitMessageHasCounts — commit message includes the file and
+// conflict counts so the rollback story is auditable from git log alone.
+// ---------------------------------------------------------------------------
+
+func TestApplyCommitMessageHasCounts(t *testing.T) {
+	root := t.TempDir()
+	target := filepath.Join(t.TempDir(), "msg.txt")
+	require.NoError(t, initCanonical(root))
+
+	ad := &stubAdapter{name: "stub", files: []adapter.File{
+		{Dest: target, Kind: adapter.RenderedFile, Content: []byte("m\n")},
+	}}
+	_, err := Run(Options{
+		Bundle:   &canonical.Bundle{Root: root},
+		Adapters: []adapter.Adapter{ad},
+	})
+	require.NoError(t, err)
+
+	out, gitErr := runGit(root, "log", "-1", "--pretty=%s")
+	require.NoError(t, gitErr)
+	assert.Contains(t, out, "apply: 1 files, 0 conflicts")
+}
+
+// ---------------------------------------------------------------------------
 // helpers
 // ---------------------------------------------------------------------------
 

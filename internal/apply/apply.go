@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 
 	"github.com/lukaszraczylo/harness-sync/internal/adapter"
+	"github.com/lukaszraczylo/harness-sync/internal/adapter/common"
 	"github.com/lukaszraczylo/harness-sync/internal/canonical"
 	"github.com/lukaszraczylo/harness-sync/internal/gitx"
 	"github.com/lukaszraczylo/harness-sync/internal/merge"
@@ -42,6 +43,11 @@ type Action struct {
 // Run renders all adapters and writes their FileSets to disk.
 // Conflicts are recorded as <dest>.rej files; processing continues past conflicts.
 //
+// When Options.Repo is nil the canonical repo is auto-opened from Bundle.Root.
+// If that directory is not a git repository the commit step is silently
+// skipped — useful for one-off renders (CI smoke tests, dry-runs) where
+// initialising a repo would be more surprising than useful.
+//
 // IMPORTANT: harness-sync intentionally does NOT resolve ${VAR} references in
 // canonical configs. Every supported harness performs its own env-var
 // expansion at MCP launch / config-load time, so resolving here would only
@@ -66,13 +72,30 @@ func Run(opt Options) (*Report, error) {
 			return rep, renderErr
 		}
 	}
-	if !opt.DryRun && rep.Written > 0 && opt.Repo != nil {
-		if err := opt.Repo.AddAll(); err != nil {
-			return rep, err
-		}
-		if err := opt.Repo.Commit(fmt.Sprintf("apply: %d files, %d conflicts", rep.Written, rep.Conflicts)); err != nil {
-			return rep, err
-		}
+	if opt.DryRun || rep.Written == 0 {
+		return rep, nil
+	}
+	repo := opt.Repo
+	if repo == nil {
+		repo = gitx.New(opt.Bundle.Root)
+	}
+	if !repo.IsRepo() {
+		return rep, nil
+	}
+	if err := repo.AddAll(); err != nil {
+		return rep, err
+	}
+	dirty, err := repo.HasStagedChanges()
+	if err != nil {
+		return rep, err
+	}
+	if !dirty {
+		// Nothing changed inside the canonical repo (writes were outside it,
+		// e.g. symlinks to temp dirs in tests). Skip the no-op commit.
+		return rep, nil
+	}
+	if err := repo.Commit(fmt.Sprintf("apply: %d files, %d conflicts", rep.Written, rep.Conflicts)); err != nil {
+		return rep, err
 	}
 	return rep, nil
 }
@@ -93,8 +116,14 @@ func statePath(root, adapterName, dest string) string {
 
 func handleRendered(opt Options, adapterName string, f adapter.File, rep *Report) error {
 	sp := statePath(opt.Bundle.Root, adapterName, f.Dest)
-	base, _ := os.ReadFile(sp)
-	current, _ := os.ReadFile(f.Dest)
+	base, readErr := common.ReadExistingFile(sp)
+	if readErr != nil {
+		return fmt.Errorf("read state %s: %w", sp, readErr)
+	}
+	current, readErr := common.ReadExistingFile(f.Dest)
+	if readErr != nil {
+		return fmt.Errorf("read target %s: %w", f.Dest, readErr)
+	}
 
 	if string(current) == string(f.Content) {
 		rep.Skipped++

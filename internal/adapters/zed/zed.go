@@ -7,6 +7,7 @@ package zed
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -18,21 +19,16 @@ import (
 const name = "zed"
 
 // Adapter implements adapter.Adapter for the Zed harness.
-type Adapter struct{ home string }
+type Adapter struct {
+	*adapter.Base
+}
 
-// Option configures an Adapter.
-type Option func(*Adapter)
-
-// WithHome overrides the home directory (defaults to os.UserHomeDir).
-func WithHome(h string) Option { return func(a *Adapter) { a.home = h } }
+// WithHome overrides the home directory used to resolve target paths.
+func WithHome(h string) adapter.BaseOption { return func(b *adapter.Base) { b.Home = h } }
 
 // New returns a new Adapter with the given options applied.
-func New(opts ...Option) *Adapter {
-	a := &Adapter{home: common.DefaultHome()}
-	for _, o := range opts {
-		o(a)
-	}
-	return a
+func New(opts ...adapter.BaseOption) *Adapter {
+	return &Adapter{Base: adapter.NewBase(opts...)}
 }
 
 // Name returns the harness identifier.
@@ -53,7 +49,7 @@ func (a *Adapter) Capabilities() adapter.HarnessCapabilities {
 
 // Detect returns true when ~/.config/zed/ exists.
 func (a *Adapter) Detect() bool {
-	_, err := os.Stat(filepath.Join(a.home, ".config", "zed"))
+	_, err := os.Stat(filepath.Join(a.Home, ".config", "zed"))
 	return err == nil
 }
 
@@ -68,8 +64,11 @@ func (a *Adapter) Detect() bool {
 // pre-existing parse errors from user-configured entries.
 func (a *Adapter) Render(b *canonical.Bundle) (*adapter.FileSet, error) {
 	fs := adapter.NewFileSet()
-	cfgPath := filepath.Join(a.home, ".config", "zed", "settings.json")
-	existing, _ := os.ReadFile(cfgPath)
+	cfgPath := filepath.Join(a.Home, ".config", "zed", "settings.json")
+	existing, err := common.ReadExistingFile(cfgPath)
+	if err != nil {
+		return nil, fmt.Errorf("read %s: %w", cfgPath, err)
+	}
 
 	// Set context_servers to nil so MergeJSONKeys removes the key entirely,
 	// clearing any entries that trigger the serde ContextServerSettingsContent bug.

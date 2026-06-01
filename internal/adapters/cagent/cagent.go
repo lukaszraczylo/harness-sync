@@ -19,21 +19,16 @@ import (
 const name = "cagent"
 
 // Adapter implements adapter.Adapter for the cagent harness.
-type Adapter struct{ home string }
+type Adapter struct {
+	*adapter.Base
+}
 
-// Option configures an Adapter.
-type Option func(*Adapter)
-
-// WithHome overrides the home directory (defaults to os.UserHomeDir).
-func WithHome(h string) Option { return func(a *Adapter) { a.home = h } }
+// WithHome overrides the home directory used to resolve target paths.
+func WithHome(h string) adapter.BaseOption { return func(b *adapter.Base) { b.Home = h } }
 
 // New returns a new Adapter with the given options applied.
-func New(opts ...Option) *Adapter {
-	a := &Adapter{home: common.DefaultHome()}
-	for _, o := range opts {
-		o(a)
-	}
-	return a
+func New(opts ...adapter.BaseOption) *Adapter {
+	return &Adapter{Base: adapter.NewBase(opts...)}
 }
 
 // Name returns the harness identifier.
@@ -53,14 +48,14 @@ func (a *Adapter) Capabilities() adapter.HarnessCapabilities {
 
 // Detect returns true when ~/.config/cagent/ exists.
 func (a *Adapter) Detect() bool {
-	_, err := os.Stat(filepath.Join(a.home, ".config", "cagent"))
+	_, err := os.Stat(filepath.Join(a.Home, ".config", "cagent"))
 	return err == nil
 }
 
 // Render produces a starter default.yaml for cagent.
 func (a *Adapter) Render(b *canonical.Bundle) (*adapter.FileSet, error) {
 	fs := adapter.NewFileSet()
-	cfgPath := filepath.Join(a.home, ".config", "cagent", "default.yaml")
+	cfgPath := filepath.Join(a.Home, ".config", "cagent", "default.yaml")
 
 	instructions := b.Instructions.Global
 	if override, ok := b.Instructions.PerHarness[name]; ok && override != "" {

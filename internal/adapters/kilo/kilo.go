@@ -3,6 +3,7 @@ package kilo
 
 import (
 	"encoding/json"
+	"fmt"
 	"maps"
 	"os"
 	"path/filepath"
@@ -16,22 +17,15 @@ const name = "kilo"
 
 // Adapter implements adapter.Adapter for the kilo harness.
 type Adapter struct {
-	home string
+	*adapter.Base
 }
 
-// Option configures an Adapter.
-type Option func(*Adapter)
-
-// WithHome overrides the home directory (defaults to os.UserHomeDir).
-func WithHome(h string) Option { return func(a *Adapter) { a.home = h } }
+// WithHome overrides the home directory used to resolve target paths.
+func WithHome(h string) adapter.BaseOption { return func(b *adapter.Base) { b.Home = h } }
 
 // New returns a new Adapter with the given options applied.
-func New(opts ...Option) *Adapter {
-	a := &Adapter{home: common.DefaultHome()}
-	for _, o := range opts {
-		o(a)
-	}
-	return a
+func New(opts ...adapter.BaseOption) *Adapter {
+	return &Adapter{Base: adapter.NewBase(opts...)}
 }
 
 // Name returns the harness identifier.
@@ -51,7 +45,7 @@ func (a *Adapter) Capabilities() adapter.HarnessCapabilities {
 
 // Detect returns true when ~/.config/kilo exists.
 func (a *Adapter) Detect() bool {
-	_, err := os.Stat(filepath.Join(a.home, ".config", "kilo"))
+	_, err := os.Stat(filepath.Join(a.Home, ".config", "kilo"))
 	return err == nil
 }
 
@@ -62,7 +56,7 @@ func (a *Adapter) Detect() bool {
 // No "providers" key — kilo has no such concept.
 func (a *Adapter) Render(b *canonical.Bundle) (*adapter.FileSet, error) {
 	fs := adapter.NewFileSet()
-	base := filepath.Join(a.home, ".config", "kilo")
+	base := filepath.Join(a.Home, ".config", "kilo")
 
 	fs.Add(adapter.File{
 		Dest:          filepath.Join(base, "agent"),
@@ -71,13 +65,16 @@ func (a *Adapter) Render(b *canonical.Bundle) (*adapter.FileSet, error) {
 	})
 	// kilo reads skills from ~/.kilo/skills/<name>/SKILL.md
 	fs.Add(adapter.File{
-		Dest:          filepath.Join(a.home, ".kilo", "skills"),
+		Dest:          filepath.Join(a.Home, ".kilo", "skills"),
 		Kind:          adapter.SymlinkDir,
 		SymlinkTarget: filepath.Join(b.Root, "skills"),
 	})
 
 	cfgPath := filepath.Join(base, "kilo.json")
-	existing, _ := os.ReadFile(cfgPath)
+	existing, err := common.ReadExistingFile(cfgPath)
+	if err != nil {
+		return nil, fmt.Errorf("read %s: %w", cfgPath, err)
+	}
 	modelStr := common.KiloModelString(&b.Profile)
 	overlay := map[string]any{}
 	if providers := common.ProvidersAsMap(&b.Profile); len(providers) > 0 {
