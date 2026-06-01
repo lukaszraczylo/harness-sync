@@ -2,6 +2,7 @@
 package claudecode
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -14,22 +15,15 @@ const name = "claude-code"
 
 // Adapter implements adapter.Adapter for the claude-code harness.
 type Adapter struct {
-	home string
+	*adapter.Base
 }
 
-// Option configures an Adapter.
-type Option func(*Adapter)
-
-// WithHome overrides the home directory (defaults to os.UserHomeDir).
-func WithHome(h string) Option { return func(a *Adapter) { a.home = h } }
+// WithHome overrides the home directory used to resolve target paths.
+func WithHome(h string) adapter.BaseOption { return func(b *adapter.Base) { b.Home = h } }
 
 // New returns a new Adapter with the given options applied.
-func New(opts ...Option) *Adapter {
-	a := &Adapter{home: common.DefaultHome()}
-	for _, o := range opts {
-		o(a)
-	}
-	return a
+func New(opts ...adapter.BaseOption) *Adapter {
+	return &Adapter{Base: adapter.NewBase(opts...)}
 }
 
 // Name returns the harness identifier.
@@ -50,7 +44,7 @@ func (a *Adapter) Capabilities() adapter.HarnessCapabilities {
 
 // Detect returns true when ~/.claude exists.
 func (a *Adapter) Detect() bool {
-	_, err := os.Stat(filepath.Join(a.home, ".claude"))
+	_, err := os.Stat(filepath.Join(a.Home, ".claude"))
 	return err == nil
 }
 
@@ -59,7 +53,7 @@ func (a *Adapter) Detect() bool {
 // only manages skills/agents symlinks, CLAUDE.md, and MCP servers.
 func (a *Adapter) Render(b *canonical.Bundle) (*adapter.FileSet, error) {
 	fs := adapter.NewFileSet()
-	base := filepath.Join(a.home, ".claude")
+	base := filepath.Join(a.Home, ".claude")
 
 	fs.Add(adapter.File{
 		Dest:          filepath.Join(base, "skills"),
@@ -92,7 +86,10 @@ func (a *Adapter) Render(b *canonical.Bundle) (*adapter.FileSet, error) {
 	overlay := map[string]any{"mcpServers": mcpMap}
 
 	dedicatedPath := filepath.Join(base, "mcp_servers.json")
-	dedicatedExisting, _ := os.ReadFile(dedicatedPath)
+	dedicatedExisting, err := common.ReadExistingFile(dedicatedPath)
+	if err != nil {
+		return nil, fmt.Errorf("read %s: %w", dedicatedPath, err)
+	}
 	dedicatedMerged, err := common.MergeJSONKeys(dedicatedExisting, overlay)
 	if err != nil {
 		return nil, err
@@ -103,9 +100,12 @@ func (a *Adapter) Render(b *canonical.Bundle) (*adapter.FileSet, error) {
 		Content: dedicatedMerged,
 	})
 
-	livePath := filepath.Join(a.home, ".claude.json")
+	livePath := filepath.Join(a.Home, ".claude.json")
 	if _, err := os.Stat(livePath); err == nil {
-		liveExisting, _ := os.ReadFile(livePath)
+		liveExisting, err := common.ReadExistingFile(livePath)
+		if err != nil {
+			return nil, fmt.Errorf("read %s: %w", livePath, err)
+		}
 		liveMerged, err := common.MergeJSONKeys(liveExisting, overlay)
 		if err != nil {
 			return nil, err

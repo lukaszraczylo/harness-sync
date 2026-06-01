@@ -29,6 +29,19 @@ func ReadIfExists(path string) (string, error) {
 	return ReadIfExistsFS(fsx.OS(), path)
 }
 
+// ReadExistingFile returns the file body or (nil, nil) when missing.
+// Other errors (permission denied, I/O failure) are returned verbatim so
+// read-modify-write callers can distinguish a fresh first-run state from a
+// broken read. Treating every error as "file is empty" silently overwrites
+// the user's on-disk edits during apply.
+func ReadExistingFile(path string) ([]byte, error) {
+	b, err := os.ReadFile(path) //nolint:gosec // caller-controlled path
+	if err != nil && os.IsNotExist(err) {
+		return nil, nil
+	}
+	return b, err
+}
+
 // DirExistsFS reports whether path is an existing directory on fs.
 func DirExistsFS(fs fsx.FS, path string) bool {
 	info, err := fs.Stat(path)

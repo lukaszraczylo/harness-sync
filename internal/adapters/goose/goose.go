@@ -10,6 +10,7 @@
 package goose
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -22,21 +23,16 @@ import (
 const name = "goose"
 
 // Adapter implements adapter.Adapter for the Goose harness.
-type Adapter struct{ home string }
+type Adapter struct {
+	*adapter.Base
+}
 
-// Option configures an Adapter.
-type Option func(*Adapter)
-
-// WithHome overrides the home directory (defaults to os.UserHomeDir).
-func WithHome(h string) Option { return func(a *Adapter) { a.home = h } }
+// WithHome overrides the home directory used to resolve target paths.
+func WithHome(h string) adapter.BaseOption { return func(b *adapter.Base) { b.Home = h } }
 
 // New returns a new Adapter with the given options applied.
-func New(opts ...Option) *Adapter {
-	a := &Adapter{home: common.DefaultHome()}
-	for _, o := range opts {
-		o(a)
-	}
-	return a
+func New(opts ...adapter.BaseOption) *Adapter {
+	return &Adapter{Base: adapter.NewBase(opts...)}
 }
 
 // Name returns the harness identifier.
@@ -56,7 +52,7 @@ func (a *Adapter) Capabilities() adapter.HarnessCapabilities {
 
 // Detect returns true when ~/.config/goose/ exists.
 func (a *Adapter) Detect() bool {
-	_, err := os.Stat(filepath.Join(a.home, ".config", "goose"))
+	_, err := os.Stat(filepath.Join(a.Home, ".config", "goose"))
 	return err == nil
 }
 
@@ -67,23 +63,26 @@ func (a *Adapter) Detect() bool {
 // also added to the FileSet so goose can load the provider on first run.
 func (a *Adapter) Render(b *canonical.Bundle) (*adapter.FileSet, error) {
 	fs := adapter.NewFileSet()
-	cfgPath := filepath.Join(a.home, ".config", "goose", "config.yaml")
+	cfgPath := filepath.Join(a.Home, ".config", "goose", "config.yaml")
 
 	// goose reads skills from ~/.agents/skills/<name>/SKILL.md (open Agent Skills spec)
 	fs.Add(adapter.File{
-		Dest:          filepath.Join(a.home, ".agents", "skills"),
+		Dest:          filepath.Join(a.Home, ".agents", "skills"),
 		Kind:          adapter.SymlinkDir,
 		SymlinkTarget: filepath.Join(b.Root, "skills"),
 	})
 
-	existing, _ := os.ReadFile(cfgPath)
+	existing, err := common.ReadExistingFile(cfgPath)
+	if err != nil {
+		return nil, fmt.Errorf("read %s: %w", cfgPath, err)
+	}
 
 	provider, model := splitProviderModel(b.Profile.Gateway.DefaultModel)
 	if b.Profile.Gateway.URL != "" {
 		// Emit the custom provider JSON file.
 		body, providerName := common.GooseCustomProviderFile(&b.Profile)
 		if body != nil {
-			cpDir := filepath.Join(a.home, ".config", "goose", "custom_providers")
+			cpDir := filepath.Join(a.Home, ".config", "goose", "custom_providers")
 			fs.Add(adapter.File{
 				Dest:    filepath.Join(cpDir, providerName+".json"),
 				Kind:    adapter.RenderedFile,
