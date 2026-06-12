@@ -168,6 +168,7 @@ func parseMCPEntry(name string, raw json.RawMessage) (canonical.MCPServer, bool)
 		Cmd         json.RawMessage   `json:"cmd"`
 		Args        []string          `json:"args"`
 		URL         string            `json:"url"`
+		Headers     map[string]string `json:"headers"`
 		Env         map[string]string `json:"env"`
 		Environment map[string]string `json:"environment"`
 	}
@@ -198,6 +199,7 @@ func parseMCPEntry(name string, raw json.RawMessage) (canonical.MCPServer, bool)
 		Args:      args,
 		URL:       e.URL,
 		Transport: transport,
+		Headers:   e.Headers,
 		Env:       env,
 	}, true
 }

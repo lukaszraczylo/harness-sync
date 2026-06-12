@@ -39,6 +39,9 @@ func mcpEntry(s canonical.MCPServer, style MCPStyle) map[string]any {
 			}
 			e["type"] = t
 			e["url"] = s.URL
+			if len(s.Headers) > 0 {
+				e["headers"] = s.Headers
+			}
 		} else {
 			// Claude honours Transport field; Crush always uses "stdio".
 			t := "stdio"
@@ -60,6 +63,9 @@ func mcpEntry(s canonical.MCPServer, style MCPStyle) map[string]any {
 		if s.URL != "" {
 			e["type"] = "remote"
 			e["url"] = s.URL
+			if len(s.Headers) > 0 {
+				e["headers"] = s.Headers
+			}
 		} else {
 			e["type"] = "local"
 			cmd := []string{}
@@ -79,6 +85,9 @@ func mcpEntry(s canonical.MCPServer, style MCPStyle) map[string]any {
 		// fail all of them. Omitting "enabled" defaults to true.
 		if s.URL != "" {
 			e["url"] = s.URL
+			if len(s.Headers) > 0 {
+				e["headers"] = s.Headers
+			}
 		} else {
 			if s.Command != "" {
 				e["command"] = s.Command

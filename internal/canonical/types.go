@@ -43,6 +43,7 @@ type MCPRegistry struct {
 
 type MCPServer struct {
 	Env       map[string]string `yaml:"env,omitempty"`
+	Headers   map[string]string `yaml:"headers,omitempty"`
 	Name      string            `yaml:"name"`
 	Command   string            `yaml:"command,omitempty"`
 	URL       string            `yaml:"url,omitempty"`

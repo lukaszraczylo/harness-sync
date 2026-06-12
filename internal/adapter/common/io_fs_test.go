@@ -42,6 +42,7 @@ func TestImportMCPFromJSONFileFSExtractsServers(t *testing.T) {
 			"myserver": {
 				"command": "/usr/bin/mytool",
 				"args": ["--flag"],
+				"headers": {"Authorization": "Bearer ${MCP_TOKEN}"},
 				"type": "stdio"
 			}
 		}
@@ -55,6 +56,7 @@ func TestImportMCPFromJSONFileFSExtractsServers(t *testing.T) {
 	assert.Equal(t, "/usr/bin/mytool", servers[0].Command)
 	assert.Equal(t, []string{"--flag"}, servers[0].Args)
 	assert.Equal(t, "stdio", servers[0].Transport)
+	assert.Equal(t, map[string]string{"Authorization": "Bearer ${MCP_TOKEN}"}, servers[0].Headers)
 }
 
 func TestImportMCPFromJSONFileFSReadOnlyFS(t *testing.T) {

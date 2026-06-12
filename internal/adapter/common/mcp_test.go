@@ -26,11 +26,16 @@ func TestBuildMCPMapStyledClaudeStyle(t *testing.T) {
 }
 
 func TestBuildMCPMapStyledClaudeStyleURL(t *testing.T) {
-	r := reg(canonical.MCPServer{Name: "remote", URL: "https://example.com"})
+	r := reg(canonical.MCPServer{
+		Name:    "remote",
+		URL:     "https://example.com",
+		Headers: map[string]string{"Authorization": "Bearer ${MCP_TOKEN}"},
+	})
 	out := BuildMCPMapStyled(r, MCPClaudeStyle)
 	e := out["remote"].(map[string]any)
 	assert.Equal(t, "https://example.com", e["url"])
 	assert.Equal(t, "http", e["type"])
+	assert.Equal(t, map[string]string{"Authorization": "Bearer ${MCP_TOKEN}"}, e["headers"])
 }
 
 func TestBuildMCPMapStyledCrushStdio(t *testing.T) {
@@ -70,12 +75,17 @@ func TestBuildMCPMapStyledOpencodeLocal(t *testing.T) {
 }
 
 func TestBuildMCPMapStyledOpencodeRemote(t *testing.T) {
-	r := reg(canonical.MCPServer{Name: "r", URL: "https://example.com"})
+	r := reg(canonical.MCPServer{
+		Name:    "r",
+		URL:     "https://example.com",
+		Headers: map[string]string{"X-Tenant": "tenant-a"},
+	})
 	out := BuildMCPMapStyled(r, MCPOpencodeStyle)
 	e := out["r"].(map[string]any)
 	assert.Equal(t, "remote", e["type"])
 	assert.Equal(t, true, e["enabled"])
 	assert.Equal(t, "https://example.com", e["url"])
+	assert.Equal(t, map[string]string{"X-Tenant": "tenant-a"}, e["headers"])
 }
 
 func TestBuildMCPMapStyledOpencodeEnv(t *testing.T) {
