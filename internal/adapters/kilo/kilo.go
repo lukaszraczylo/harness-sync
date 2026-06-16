@@ -38,7 +38,9 @@ func (a *Adapter) Capabilities() adapter.HarnessCapabilities {
 		ManagesModels:       true,
 		ManagesMCP:          true,
 		ManagesSkills:       true,
-		ManagesInstructions: false,
+		ManagesAgents:       true,
+		ManagesRules:        true,
+		ManagesInstructions: true,
 		HasBuiltInSub:       false,
 	}
 }
@@ -58,8 +60,11 @@ func (a *Adapter) Render(b *canonical.Bundle) (*adapter.FileSet, error) {
 	fs := adapter.NewFileSet()
 	base := filepath.Join(a.Home, ".config", "kilo")
 
+	// Kilo CLI reads global markdown subagents from ~/.config/kilo/agents/<name>.md
+	// (PLURAL — the singular "agent/" used by older OpenCode-fork builds is a
+	// silent no-op on current Kilo).
 	fs.Add(adapter.File{
-		Dest:          filepath.Join(base, "agent"),
+		Dest:          filepath.Join(base, "agents"),
 		Kind:          adapter.SymlinkDir,
 		SymlinkTarget: filepath.Join(b.Root, "agents"),
 	})
@@ -68,6 +73,13 @@ func (a *Adapter) Render(b *canonical.Bundle) (*adapter.FileSet, error) {
 		Dest:          filepath.Join(a.Home, ".kilo", "skills"),
 		Kind:          adapter.SymlinkDir,
 		SymlinkTarget: filepath.Join(b.Root, "skills"),
+	})
+	// kilo has no global rules directory; ~/.config/kilo/AGENTS.md is the
+	// always-on global instructions file, so fold rules into it.
+	fs.Add(adapter.File{
+		Dest:    filepath.Join(base, "AGENTS.md"),
+		Kind:    adapter.RenderedFile,
+		Content: []byte(b.InstructionTextWithRules(name)),
 	})
 
 	cfgPath := filepath.Join(base, "kilo.json")

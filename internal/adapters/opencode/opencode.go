@@ -37,6 +37,8 @@ func (a *Adapter) Capabilities() adapter.HarnessCapabilities {
 		ManagesModels:       true,
 		ManagesMCP:          true,
 		ManagesSkills:       true,
+		ManagesAgents:       true,
+		ManagesRules:        true,
 		ManagesInstructions: true,
 		HasBuiltInSub:       false,
 	}
@@ -61,6 +63,12 @@ func (a *Adapter) Render(b *canonical.Bundle) (*adapter.FileSet, error) {
 		Dest:          filepath.Join(base, "skills"),
 		Kind:          adapter.SymlinkDir,
 		SymlinkTarget: filepath.Join(b.Root, "skills"),
+	})
+	// opencode reads markdown subagents from ~/.config/opencode/agents/<name>.md
+	fs.Add(adapter.File{
+		Dest:          filepath.Join(base, "agents"),
+		Kind:          adapter.SymlinkDir,
+		SymlinkTarget: filepath.Join(b.Root, "agents"),
 	})
 
 	cfgPath := filepath.Join(base, "opencode.jsonc")
@@ -104,14 +112,12 @@ func (a *Adapter) Render(b *canonical.Bundle) (*adapter.FileSet, error) {
 		Content: merged,
 	})
 
-	instructions := b.Instructions.Global
-	if override, ok := b.Instructions.PerHarness[name]; ok && override != "" {
-		instructions = override
-	}
+	// opencode has no native rules directory; rule content reaches it only via
+	// the global AGENTS.md instructions file, so fold the rules in here.
 	fs.Add(adapter.File{
 		Dest:    filepath.Join(base, "AGENTS.md"),
 		Kind:    adapter.RenderedFile,
-		Content: []byte(instructions),
+		Content: []byte(b.InstructionTextWithRules(name)),
 	})
 
 	return fs, nil

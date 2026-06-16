@@ -31,6 +31,8 @@ type HarnessCapabilities struct {
 	ManagesModels       bool // writes model selection config
 	ManagesMCP          bool // writes MCP server config
 	ManagesSkills       bool // writes skills symlink or equivalent
+	ManagesAgents       bool // writes agents symlink or equivalent
+	ManagesRules        bool // delivers rules (native rules dir, or folded into instructions)
 	ManagesInstructions bool // writes instructions file (CLAUDE.md, AGENTS.md, etc.)
 	HasBuiltInSub       bool // has its own subscription; provider/model config is skipped
 }
@@ -47,6 +49,7 @@ type ImportResult struct {
 	Instructions string
 	Skills       []canonical.Skill
 	Agents       []canonical.Agent
+	Rules        []canonical.Rule
 	MCP          []canonical.MCPServer
 	Profiles     []canonical.Profile
 }

@@ -41,6 +41,7 @@ func (a *Adapter) Capabilities() adapter.HarnessCapabilities {
 		ManagesModels:       true,
 		ManagesMCP:          true,
 		ManagesSkills:       false,
+		ManagesRules:        true,
 		ManagesInstructions: true,
 		HasBuiltInSub:       false,
 	}
@@ -57,10 +58,9 @@ func (a *Adapter) Render(b *canonical.Bundle) (*adapter.FileSet, error) {
 	fs := adapter.NewFileSet()
 	cfgPath := filepath.Join(a.Home, ".config", "cagent", "default.yaml")
 
-	instructions := b.Instructions.Global
-	if override, ok := b.Instructions.PerHarness[name]; ok && override != "" {
-		instructions = override
-	}
+	// cagent has no rules concept; the per-agent instruction (system prompt) is
+	// the only sink, so fold rules into it.
+	instructions := b.InstructionTextWithRules(name)
 
 	mcps := map[string]any{}
 	for _, s := range b.MCP.Servers {

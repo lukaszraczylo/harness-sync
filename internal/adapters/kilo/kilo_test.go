@@ -33,7 +33,8 @@ func TestKiloRender(t *testing.T) {
 	seen := map[string]adapter.File{}
 	fs.ForEach(func(f adapter.File) { seen[f.Dest] = f })
 
-	agentDest := filepath.Join(home, ".config", "kilo", "agent")
+	// Global markdown subagents dir is PLURAL "agents" on current Kilo CLI.
+	agentDest := filepath.Join(home, ".config", "kilo", "agents")
 	assert.Equal(t, adapter.SymlinkDir, seen[agentDest].Kind)
 	assert.Equal(t, "/canon/agents", seen[agentDest].SymlinkTarget)
 

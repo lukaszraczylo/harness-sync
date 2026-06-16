@@ -17,11 +17,15 @@ func TestInitApplyDiffCycle(t *testing.T) {
 	home := t.TempDir()
 	root := filepath.Join(home, ".config", "harness-sync")
 
-	// Fake a claude-code install with one skill
+	// Fake a claude-code install with one skill and one rule
 	require.NoError(t, os.MkdirAll(filepath.Join(home, ".claude", "skills", "hi"), 0o750))
 	require.NoError(t, os.WriteFile(
 		filepath.Join(home, ".claude", "skills", "hi", "SKILL.md"),
 		[]byte("---\nname: hi\n---\nbody"), 0o600))
+	require.NoError(t, os.MkdirAll(filepath.Join(home, ".claude", "rules"), 0o750))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(home, ".claude", "rules", "go.md"),
+		[]byte("# Go Rules\n\ngofmt always"), 0o600))
 
 	run := func(args ...string) ([]byte, error) {
 		cmd := exec.Command(bin, args...)
@@ -33,6 +37,7 @@ func TestInitApplyDiffCycle(t *testing.T) {
 	require.NoError(t, err, string(out))
 	assert.FileExists(t, filepath.Join(root, "config.yaml"))
 	assert.FileExists(t, filepath.Join(root, "skills", "hi", "SKILL.md"))
+	assert.FileExists(t, filepath.Join(root, "rules", "go.md"))
 
 	// apply may produce conflicts on a freshly imported tree (because the
 	// claude-code adapter merges into existing settings.json which differs

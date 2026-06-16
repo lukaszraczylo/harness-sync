@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <strong>One canonical source of truth</strong> for skills, agents, MCP servers, LLM endpoints, and global instructions across every LLM harness on your machine.
+  <strong>One canonical source of truth</strong> for skills, agents, rules, MCP servers, LLM endpoints, and global instructions across every LLM harness on your machine.
 </p>
 
 <p align="center">
@@ -40,6 +40,7 @@ Edit once. Forget the others. They drift. Things stop working in odd places.
                  │  • profiles/<name>.yaml          │
                  │  • skills/<name>/SKILL.md        │
                  │  • agents/<name>.md              │
+                 │  • rules/<name>.md               │
                  │  • mcp.yaml                      │
                  │  • instructions/global.md        │
                  └──────────────┬───────────────────┘
@@ -145,21 +146,30 @@ harness-sync goes out of its way to avoid.
 
 ### Capability matrix
 
-What harness-sync writes per harness. Harnesses with a **built-in subscription** receive MCP + skills + instructions only — provider/model/endpoint config is skipped to avoid conflicting with the harness's own auth.
+What harness-sync writes per harness. Harnesses with a **built-in subscription** receive MCP + skills + agents + rules + instructions only — provider/model/endpoint config is skipped to avoid conflicting with the harness's own auth.
 
 Skills paths are grounded in each harness's official documentation (kilo.ai, opencode.ai, goose-docs.ai). kilo, opencode, and goose also scan `~/.claude/skills/` as a compatibility path, so the claude-code symlink passively reaches them already.
 
-| Harness | Built-in sub | Providers | Models | MCP | Skills | Instructions |
-|---|:---:|:---:|:---:|:---:|:---:|:---:|
-| **claude-code** | ✓ | — | — | ✓ | ✓ | ✓ |
-| **crush** | — | ✓ | ✓ | ✓ | ✓ | — |
-| **kilo** | — | ✓ | ✓ | ✓ | ✓ | — |
-| **opencode** | — | ✓ | ✓ | ✓ | ✓ | ✓ |
-| **goose** | — | ✓ | ✓ | ✓ | ✓ | — |
-| **cagent** | — | ✓ | ✓ | ✓ | — | ✓ |
-| **zed** | — | ✓ | ✓ | ✓ | — | — |
+| Harness | Built-in sub | Providers | Models | MCP | Skills | Agents | Rules | Instructions |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| **claude-code** | ✓ | — | — | ✓ | ✓ | ✓ | ✓ⁿ | ✓ |
+| **crush** | — | ✓ | ✓ | ✓ | ✓ | — | ✓ᶠ | ✓ᶠ |
+| **kilo** | — | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ᶠ | ✓ᶠ |
+| **opencode** | — | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ᶠ | ✓ |
+| **goose** | — | ✓ | ✓ | ✓ | ✓ | — | ✓ᶠ | ✓ᶠ |
+| **cagent** | — | ✓ | ✓ | ✓ | — | — | ✓ᶠ | ✓ |
+| **zed** | — | ✓ | ✓ | — | — | — | ✓ᶠ | ✓ᶠ |
 
-The matrix is machine-readable via `adapter.Capabilities()` — every adapter implements `HarnessCapabilities` so tooling can inspect what will change before running `apply`.
+The matrix is machine-readable via `adapter.Capabilities()` — every adapter implements `HarnessCapabilities` (`ManagesProviders/Models/MCP/Skills/Agents/Rules/Instructions`) so tooling can inspect what will change before running `apply`.
+
+### Agents & rules — native where possible, folded where necessary
+
+Each kind is delivered the way the target harness actually loads it (grounded in each harness's docs and config source — a wrong path is a silent no-op):
+
+- **Agents** are markdown subagents. They map cleanly to **claude-code** (`~/.claude/agents/`), **kilo** (`~/.config/kilo/agents/` — plural; the older singular `agent/` is a no-op on current Kilo CLI), and **opencode** (`~/.config/opencode/agents/`), all as directory symlinks. **goose** (YAML recipes) and **cagent** (inline YAML `agents:`) use incompatible agent formats, and **crush**/**zed** have no markdown-subagent concept — so agents are not propagated there.
+- **Rules** (`rules/<name>.md`) are topic-scoped instruction fragments. **claude-code** auto-loads a rules *directory* natively (ⁿ), so they're delivered as a `~/.claude/rules` symlink — preserving each rule's optional path-scoping frontmatter. No other harness has a rules directory, so their bodies are **folded** (ᶠ) into that harness's global always-on instructions file — `AGENTS.md` (opencode/kilo/zed/crush), `.goosehints` (goose), or the per-agent `instruction:` (cagent). crush has no global instructions file, so harness-sync writes `~/.config/crush/AGENTS.md` and registers its absolute path in `options.context_paths` (crush always re-adds its built-in defaults at load, so nothing is clobbered).
+
+ⁿ delivered as a native rules directory  ᶠ folded into the harness's global instructions file
 
 > **Merged, not replaced.** For harnesses with user-managed config keys (every one
 > except cagent), harness-sync reads the existing file, overlays only the keys
@@ -279,7 +289,7 @@ end-to-end test that runs the real binary against a fake `$HOME`.
 
 ```
 cmd/harness-sync/main.go              # cobra entrypoint + adapter registration
-internal/canonical/                   # Bundle, Profile, MCPRegistry, Skill, Agent types + loader
+internal/canonical/                   # Bundle, Profile, MCPRegistry, Skill, Agent, Rule types + loader
 internal/adapter/                     # Adapter interface, Registry, FileSet
 internal/adapter/common/              # shared building blocks (BuildProviders, BuildMCPMapStyled, MergeJSONKeys, MergeYAMLKeys, …)
 internal/adapters/<harness>/          # one package per harness, ~50-100 LOC of harness-specific glue

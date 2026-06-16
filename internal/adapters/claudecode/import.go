@@ -32,6 +32,16 @@ func importFrom(home string) (*adapter.ImportResult, error) {
 		})
 	}
 
+	rules, err := common.ImportMarkdownTree(filepath.Join(base, "rules"), "")
+	if err != nil {
+		return nil, err
+	}
+	for _, r := range rules {
+		res.Rules = append(res.Rules, canonical.Rule{
+			Name: r.Name, Description: r.Description, Body: r.Body, Path: r.Path,
+		})
+	}
+
 	body, err := common.ReadIfExists(filepath.Join(base, "CLAUDE.md"))
 	if err != nil {
 		return nil, err

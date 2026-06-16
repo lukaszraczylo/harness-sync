@@ -53,6 +53,34 @@ func TestInitImportWritesCanonical(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestInitImportsRules(t *testing.T) {
+	root := t.TempDir()
+	home := t.TempDir()
+
+	reg := adapter.NewRegistry()
+	reg.Register(&importableAdapter{
+		name: "stub",
+		res: &adapter.ImportResult{
+			Rules: []canonical.Rule{
+				{Name: "go", Body: "# Go\n\ngofmt", Path: "go.md"},
+				{Name: "py", Body: "# Py\n\ntypes", Path: "py.md"},
+			},
+		},
+	})
+
+	cmd := NewInit(reg)
+	cmd.SetArgs([]string{"--root", root, "--home", home, "--from", "stub", "--no-prompt"})
+	require.NoError(t, cmd.Execute())
+
+	assert.FileExists(t, filepath.Join(root, "rules", "go.md"))
+	assert.FileExists(t, filepath.Join(root, "rules", "py.md"))
+
+	// Round-trips back through the loader.
+	b, err := canonical.Load(root)
+	require.NoError(t, err)
+	require.Len(t, b.Rules, 2)
+}
+
 func makeStubReg() *adapter.Registry {
 	reg := adapter.NewRegistry()
 	reg.Register(&importableAdapter{

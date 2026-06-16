@@ -42,7 +42,8 @@ func (a *Adapter) Capabilities() adapter.HarnessCapabilities {
 		ManagesModels:       true,
 		ManagesMCP:          false, // Agent panel uses Extensions; context_servers key causes serde parse errors
 		ManagesSkills:       false,
-		ManagesInstructions: false,
+		ManagesRules:        true,
+		ManagesInstructions: true,
 		HasBuiltInSub:       false,
 	}
 }
@@ -96,6 +97,17 @@ func (a *Adapter) Render(b *canonical.Bundle) (*adapter.FileSet, error) {
 		// on JSONC causes spurious conflicts on whitespace/comment differences.
 		NoMerge: true,
 	})
+
+	// Zed reads personal/global instructions from ~/.config/zed/AGENTS.md
+	// (always-on for the Agent across all projects). Zed has no rules directory,
+	// so fold rules into it.
+	if instr := b.InstructionTextWithRules(name); instr != "" {
+		fs.Add(adapter.File{
+			Dest:    filepath.Join(a.Home, ".config", "zed", "AGENTS.md"),
+			Kind:    adapter.RenderedFile,
+			Content: []byte(instr),
+		})
+	}
 
 	return fs, nil
 }

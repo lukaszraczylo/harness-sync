@@ -65,6 +65,16 @@ type Agent struct {
 	Path        string
 }
 
+// Rule is a topic-scoped instruction fragment (e.g. ~/.claude/rules/go.md).
+// Claude Code auto-loads a directory of these; harnesses without a native rules
+// directory receive the bodies folded into their global instructions file.
+type Rule struct {
+	Name        string
+	Description string
+	Body        string
+	Path        string
+}
+
 type Instructions struct {
 	PerHarness map[string]string
 	Global     string
@@ -77,6 +87,7 @@ type Bundle struct {
 	Profile      Profile
 	Skills       []Skill
 	Agents       []Agent
+	Rules        []Rule
 	MCP          MCPRegistry
 }
 

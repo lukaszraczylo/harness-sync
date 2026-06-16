@@ -2,6 +2,7 @@
 package crush
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -36,7 +37,8 @@ func (a *Adapter) Capabilities() adapter.HarnessCapabilities {
 		ManagesModels:       true,
 		ManagesMCP:          true,
 		ManagesSkills:       true,
-		ManagesInstructions: false,
+		ManagesRules:        true,
+		ManagesInstructions: true,
 		HasBuiltInSub:       false,
 	}
 }
@@ -60,12 +62,25 @@ func (a *Adapter) Render(b *canonical.Bundle) (*adapter.FileSet, error) {
 		SymlinkTarget: filepath.Join(b.Root, "skills"),
 	})
 
+	// crush has no global instructions file and no rules directory: it loads
+	// context from the files listed in options.context_paths (defaults are always
+	// prepended; absolute paths load verbatim; the global config applies to every
+	// project). Write a global AGENTS.md with rules folded in, and register its
+	// absolute path so crush loads it in every session.
+	agentsMD := filepath.Join(base, "AGENTS.md")
+	fs.Add(adapter.File{
+		Dest:    agentsMD,
+		Kind:    adapter.RenderedFile,
+		Content: []byte(b.InstructionTextWithRules(name)),
+	})
+
 	cfgPath := filepath.Join(base, "crush.json")
 	existing, err := common.ReadExistingFile(cfgPath)
 	if err != nil {
 		return nil, fmt.Errorf("read %s: %w", cfgPath, err)
 	}
 	overlay := map[string]any{}
+	overlay["options"] = crushOptionsWithContextPath(existing, agentsMD)
 	if providers := common.ProvidersAsCrushMap(&b.Profile); len(providers) > 0 {
 		overlay["providers"] = providers
 	}
@@ -87,6 +102,34 @@ func (a *Adapter) Render(b *canonical.Bundle) (*adapter.FileSet, error) {
 	})
 
 	return fs, nil
+}
+
+// crushOptionsWithContextPath returns the crush "options" object with contextFile
+// added to options.context_paths, preserving every other existing option key
+// (lsp, permissions, …). crush always prepends its built-in default context
+// paths at load time, so only the extra path is set here. Idempotent.
+func crushOptionsWithContextPath(existing []byte, contextFile string) map[string]any {
+	opts := map[string]any{}
+	if len(existing) > 0 {
+		var raw map[string]any
+		clean := common.StripJSONComments(string(existing))
+		if json.Unmarshal([]byte(clean), &raw) == nil {
+			if o, ok := raw["options"].(map[string]any); ok {
+				opts = o
+			}
+		}
+	}
+	var paths []any
+	if existingPaths, ok := opts["context_paths"].([]any); ok {
+		paths = existingPaths
+	}
+	for _, p := range paths {
+		if s, ok := p.(string); ok && s == contextFile {
+			return opts // already registered
+		}
+	}
+	opts["context_paths"] = append(paths, contextFile)
+	return opts
 }
 
 // Import reads crush config from home and returns a canonical ImportResult.

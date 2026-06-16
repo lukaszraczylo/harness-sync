@@ -28,6 +28,10 @@ func TestLoad(t *testing.T) {
 	require.Len(t, b.Agents, 1)
 	assert.Equal(t, "sample", b.Agents[0].Name)
 
+	require.Len(t, b.Rules, 1)
+	assert.Equal(t, "sample-rule", b.Rules[0].Name)
+	assert.Contains(t, b.Rules[0].Body, "Always be concise.")
+
 	assert.Contains(t, b.Instructions.Global, "Be helpful.")
 }
 

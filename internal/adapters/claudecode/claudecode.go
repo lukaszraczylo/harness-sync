@@ -37,6 +37,8 @@ func (a *Adapter) Capabilities() adapter.HarnessCapabilities {
 		ManagesModels:       false,
 		ManagesMCP:          true,
 		ManagesSkills:       true,
+		ManagesAgents:       true,
+		ManagesRules:        true,
 		ManagesInstructions: true,
 		HasBuiltInSub:       true,
 	}
@@ -65,15 +67,19 @@ func (a *Adapter) Render(b *canonical.Bundle) (*adapter.FileSet, error) {
 		Kind:          adapter.SymlinkDir,
 		SymlinkTarget: filepath.Join(b.Root, "agents"),
 	})
+	// Claude Code natively auto-loads ~/.claude/rules/*.md (memory feature), so
+	// rules are delivered as their own directory symlink — NOT folded into
+	// CLAUDE.md — preserving each rule's optional path-scoping frontmatter.
+	fs.Add(adapter.File{
+		Dest:          filepath.Join(base, "rules"),
+		Kind:          adapter.SymlinkDir,
+		SymlinkTarget: filepath.Join(b.Root, "rules"),
+	})
 
-	instructions := b.Instructions.Global
-	if override, ok := b.Instructions.PerHarness[name]; ok && override != "" {
-		instructions = override
-	}
 	fs.Add(adapter.File{
 		Dest:    filepath.Join(base, "CLAUDE.md"),
 		Kind:    adapter.RenderedFile,
-		Content: []byte(instructions),
+		Content: []byte(b.InstructionText(name)),
 	})
 
 	// Claude Code reads MCP servers from two files on disk:

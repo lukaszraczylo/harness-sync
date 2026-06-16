@@ -45,7 +45,8 @@ func (a *Adapter) Capabilities() adapter.HarnessCapabilities {
 		ManagesModels:       true,
 		ManagesMCP:          true,
 		ManagesSkills:       true,
-		ManagesInstructions: false,
+		ManagesRules:        true,
+		ManagesInstructions: true,
 		HasBuiltInSub:       false,
 	}
 }
@@ -112,6 +113,16 @@ func (a *Adapter) Render(b *canonical.Bundle) (*adapter.FileSet, error) {
 		Kind:    adapter.RenderedFile,
 		Content: merged,
 	})
+
+	// goose has no native rules directory; ~/.config/goose/.goosehints is the
+	// global hints file applied to every session, so fold rules into it.
+	if hints := b.InstructionTextWithRules(name); hints != "" {
+		fs.Add(adapter.File{
+			Dest:    filepath.Join(a.Home, ".config", "goose", ".goosehints"),
+			Kind:    adapter.RenderedFile,
+			Content: []byte(hints),
+		})
+	}
 
 	return fs, nil
 }

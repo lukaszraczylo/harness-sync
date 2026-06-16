@@ -72,6 +72,14 @@ func LoadFS(fs fsx.FS, root string) (*Bundle, error) {
 		b.Agents = append(b.Agents, Agent(m))
 	}
 
+	rules, err := loadMarkdownDirFS(fs, filepath.Join(root, "rules"), "")
+	if err != nil {
+		return nil, err
+	}
+	for _, m := range rules {
+		b.Rules = append(b.Rules, Rule(m))
+	}
+
 	b.Instructions.PerHarness = map[string]string{}
 	body, err := readFileIfExistsFS(fs, filepath.Join(root, "instructions", "global.md"))
 	if err != nil {
