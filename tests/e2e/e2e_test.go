@@ -90,7 +90,7 @@ func TestDetectListsAllAdapters(t *testing.T) {
 
 	// None should be detected in an empty HOME
 	s := string(out)
-	for _, name := range []string{"claude-code", "crush", "kilo", "opencode", "goose", "cagent", "zed"} {
+	for _, name := range []string{"claude-code", "crush", "kilo", "opencode", "pi", "goose", "cagent", "zed"} {
 		assert.Contains(t, s, name)
 	}
 	assert.Contains(t, s, "not detected")

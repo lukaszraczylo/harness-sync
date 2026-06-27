@@ -12,6 +12,7 @@ import (
 	"github.com/lukaszraczylo/harness-sync/internal/adapters/goose"
 	"github.com/lukaszraczylo/harness-sync/internal/adapters/kilo"
 	"github.com/lukaszraczylo/harness-sync/internal/adapters/opencode"
+	"github.com/lukaszraczylo/harness-sync/internal/adapters/pi"
 	"github.com/lukaszraczylo/harness-sync/internal/adapters/zed"
 	"github.com/lukaszraczylo/harness-sync/internal/cli"
 	"github.com/lukaszraczylo/oss-telemetry"
@@ -28,6 +29,7 @@ func main() {
 	reg.Register(crush.New())
 	reg.Register(kilo.New())
 	reg.Register(opencode.New())
+	reg.Register(pi.New())
 	reg.Register(goose.New())
 	reg.Register(cagent.New())
 	reg.Register(zed.New())

@@ -140,6 +140,7 @@ harness-sync goes out of its way to avoid.
 | **crush** | `~/.config/crush/crush.json` (merged) | `mcp` (`type: stdio`/`http`/`sse`) | `providers` map + `default_model` | `~/.config/crush/skills/` |
 | **kilo** | `~/.config/kilo/kilo.json` (merged) | `mcp` (`type: local`/`remote`) | `provider` map + `model` + `small_model` | `~/.kilo/skills/` |
 | **opencode** | `~/.config/opencode/opencode.jsonc` (merged) | `mcp` (`type: local`/`remote`) | `provider` map + `model` | `~/.config/opencode/skills/` |
+| **pi** | `~/.pi/agent/settings.json` (merged) + `~/.pi/agent/models.json` | — | `defaultProvider` + `defaultModel` + `models.json` provider | `~/.pi/agent/skills/` |
 | **goose** | `~/.config/goose/config.yaml` (merged) + `custom_providers/<name>.json` | `extensions` map (`type: stdio`) | `GOOSE_PROVIDER` + `GOOSE_MODEL` | `~/.agents/skills/` |
 | **cagent** | `~/.config/cagent/default.yaml` (starter) | `mcps` | `providers` map + per-agent `model:` | — |
 | **zed** | `~/.config/zed/settings.json` (merged) | `context_servers` | `language_models.openai.{api_url, available_models}` + `agent.default_model` | — |
@@ -156,6 +157,7 @@ Skills paths are grounded in each harness's official documentation (kilo.ai, ope
 | **crush** | — | ✓ | ✓ | ✓ | ✓ | — | ✓ᶠ | ✓ᶠ |
 | **kilo** | — | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ᶠ | ✓ᶠ |
 | **opencode** | — | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ᶠ | ✓ |
+| **pi** | — | ✓ | ✓ | — | ✓ | — | ✓ᶠ | ✓ᶠ |
 | **goose** | — | ✓ | ✓ | ✓ | ✓ | — | ✓ᶠ | ✓ᶠ |
 | **cagent** | — | ✓ | ✓ | ✓ | — | — | ✓ᶠ | ✓ |
 | **zed** | — | ✓ | ✓ | — | — | — | ✓ᶠ | ✓ᶠ |
