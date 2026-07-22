@@ -1,6 +1,7 @@
 package common
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -63,4 +64,53 @@ func TestParseMCPFromJSONMissingKey(t *testing.T) {
 	servers, err := ParseMCPFromJSON(body, "mcpServers")
 	require.NoError(t, err)
 	assert.Nil(t, servers)
+}
+
+func TestProvidersAsMapHonorsPerModelLimits(t *testing.T) {
+	p := &canonical.Profile{
+		Gateway: canonical.Gateway{URL: "https://gw.example.com/v1", Token: "t"},
+		Models: []canonical.Model{
+			{ID: "prov/big", Context: 262144, Output: 65536},
+			{ID: "prov/default"},
+		},
+	}
+	models := ProvidersAsMap(p)[GatewayProviderKey(p.Gateway.URL)].(map[string]any)["models"].(map[string]any)
+
+	big := models["prov/big"].(map[string]any)["limit"].(map[string]any)
+	assert.Equal(t, 262144, big["context"], "explicit context override should win")
+	assert.Equal(t, 65536, big["output"], "explicit output override should win")
+
+	def := models["prov/default"].(map[string]any)["limit"].(map[string]any)
+	assert.Equal(t, 200000, def["context"], "unset model falls back to default context")
+	assert.Equal(t, 8192, def["output"], "unset model falls back to default output")
+}
+
+func TestProvidersAsCrushMapHonorsPerModelLimits(t *testing.T) {
+	p := &canonical.Profile{
+		Gateway: canonical.Gateway{URL: "https://gw.example.com/v1", Token: "t"},
+		Models: []canonical.Model{
+			{ID: "prov/big", Context: 262144, Output: 65536},
+			{ID: "prov/default"},
+		},
+	}
+	models := ProvidersAsCrushMap(p)[GatewayProviderKey(p.Gateway.URL)].(map[string]any)["models"].([]map[string]any)
+
+	assert.Equal(t, 262144, models[0]["context_window"], "explicit context override should win")
+	assert.Equal(t, 65536, models[0]["default_max_tokens"], "explicit output override should win")
+	assert.Equal(t, 200000, models[1]["context_window"], "unset model falls back to default context")
+	assert.Equal(t, 8192, models[1]["default_max_tokens"], "unset model falls back to default output")
+}
+
+func TestGooseCustomProviderFileHonorsPerModelContext(t *testing.T) {
+	p := &canonical.Profile{
+		Gateway: canonical.Gateway{URL: "https://gw.example.com/v1", Token: "t"},
+		Models:  []canonical.Model{{ID: "big", Context: 262144}, {ID: "default"}},
+	}
+	body, _ := GooseCustomProviderFile(p)
+	var entry map[string]any
+	require.NoError(t, json.Unmarshal(body, &entry))
+	models := entry["models"].([]any)
+
+	assert.Equal(t, float64(262144), models[0].(map[string]any)["context_limit"], "explicit context override should win")
+	assert.Equal(t, float64(200000), models[1].(map[string]any)["context_limit"], "unset model falls back to default context")
 }

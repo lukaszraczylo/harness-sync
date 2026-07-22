@@ -35,6 +35,33 @@ type Upstream struct {
 type Model struct {
 	ID    string `yaml:"id"`
 	Alias string `yaml:"alias,omitempty"`
+	// Context and Output are optional per-model limit overrides (tokens). When
+	// unset (0), harnesses fall back to DefaultContextLimit / DefaultOutputLimit.
+	Context int `yaml:"context,omitempty"`
+	Output  int `yaml:"output,omitempty"`
+}
+
+// Default per-model limits, applied by harnesses that surface context/output
+// limits when a Model doesn't specify its own.
+const (
+	DefaultContextLimit = 200000
+	DefaultOutputLimit  = 8192
+)
+
+// ContextLimit returns the model's context window, or DefaultContextLimit if unset.
+func (m Model) ContextLimit() int {
+	if m.Context > 0 {
+		return m.Context
+	}
+	return DefaultContextLimit
+}
+
+// OutputLimit returns the model's max output tokens, or DefaultOutputLimit if unset.
+func (m Model) OutputLimit() int {
+	if m.Output > 0 {
+		return m.Output
+	}
+	return DefaultOutputLimit
 }
 
 type MCPRegistry struct {

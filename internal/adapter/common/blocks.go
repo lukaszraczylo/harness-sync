@@ -31,16 +31,16 @@ func GatewayProviderKey(gatewayURL string) string {
 }
 
 // crushModel builds a 10-field model entry required by the crush schema.
-func crushModel(id string) map[string]any {
+func crushModel(m canonical.Model) map[string]any {
 	return map[string]any{
-		"id":                     id,
-		"name":                   id,
+		"id":                     m.ID,
+		"name":                   m.ID,
 		"cost_per_1m_in":         0,
 		"cost_per_1m_out":        0,
 		"cost_per_1m_in_cached":  0,
 		"cost_per_1m_out_cached": 0,
-		"context_window":         200000,
-		"default_max_tokens":     8192,
+		"context_window":         m.ContextLimit(),
+		"default_max_tokens":     m.OutputLimit(),
 		"can_reason":             false,
 		"supports_attachments":   true,
 	}
@@ -56,10 +56,10 @@ func ProvidersAsCrushMap(p *canonical.Profile) map[string]any {
 	}
 	models := make([]map[string]any, 0)
 	for _, m := range p.Models {
-		models = append(models, crushModel(m.ID))
+		models = append(models, crushModel(m))
 	}
 	if len(models) == 0 && p.Gateway.DefaultModel != "" {
-		models = append(models, crushModel(p.Gateway.DefaultModel))
+		models = append(models, crushModel(canonical.Model{ID: p.Gateway.DefaultModel}))
 	}
 	out[GatewayProviderKey(p.Gateway.URL)] = map[string]any{
 		"type":     "openai-compat",
@@ -101,7 +101,7 @@ func ProvidersAsMap(p *canonical.Profile) map[string]any {
 			}
 			models[m.ID] = map[string]any{
 				"name":  displayName,
-				"limit": map[string]any{"context": 200000, "output": 8192},
+				"limit": map[string]any{"context": m.ContextLimit(), "output": m.OutputLimit()},
 			}
 		}
 		entry := map[string]any{
@@ -172,7 +172,7 @@ func GooseCustomProviderFile(p *canonical.Profile) ([]byte, string) {
 	for _, m := range p.Models {
 		models = append(models, map[string]any{
 			"name":          m.ID,
-			"context_limit": 200000,
+			"context_limit": m.ContextLimit(),
 		})
 	}
 	if len(models) == 0 && p.Gateway.DefaultModel != "" {
@@ -183,7 +183,7 @@ func GooseCustomProviderFile(p *canonical.Profile) ([]byte, string) {
 		}
 		models = append(models, map[string]any{
 			"name":          modelID,
-			"context_limit": 200000,
+			"context_limit": canonical.DefaultContextLimit,
 		})
 	}
 

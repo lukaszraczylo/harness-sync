@@ -63,6 +63,25 @@ func TestZedRenderProducesExpectedTargets(t *testing.T) {
 	assert.NotContains(t, parsed, "context_servers")
 }
 
+func TestZedRenderHonorsPerModelContext(t *testing.T) {
+	home := t.TempDir()
+	b := bundle()
+	b.Profile.Models = []canonical.Model{{ID: "big", Context: 262144}}
+
+	fs, err := New(WithHome(home)).Render(b)
+	require.NoError(t, err)
+
+	seen := map[string]adapter.File{}
+	fs.ForEach(func(f adapter.File) { seen[f.Dest] = f })
+	cfgDest := filepath.Join(home, ".config", "zed", "settings.json")
+	require.Contains(t, seen, cfgDest)
+
+	var parsed map[string]any
+	require.NoError(t, json.Unmarshal(seen[cfgDest].Content, &parsed))
+	models := parsed["language_models"].(map[string]any)["openai_compatible"].(map[string]any)["hs-llmgw-example-com"].(map[string]any)["available_models"].([]any)
+	assert.Equal(t, float64(262144), models[0].(map[string]any)["max_tokens"], "explicit context override should win")
+}
+
 func TestZedRenderMergesExistingKeys(t *testing.T) {
 	home := t.TempDir()
 	base := filepath.Join(home, ".config", "zed")

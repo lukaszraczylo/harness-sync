@@ -122,7 +122,7 @@ func zedLanguageModels(p *canonical.Profile) map[string]any {
 		for _, m := range p.Models {
 			me := map[string]any{
 				"name":       m.ID,
-				"max_tokens": 200000,
+				"max_tokens": m.ContextLimit(),
 				"capabilities": map[string]any{
 					"tools":               true,
 					"images":              false,
