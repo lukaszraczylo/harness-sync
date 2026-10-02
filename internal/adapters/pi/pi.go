@@ -116,6 +116,17 @@ func piModelsJSON(b *canonical.Bundle) ([]byte, error) {
 		if m.Alias != "" {
 			entry["name"] = m.Alias
 		}
+		// Emit limits only when the profile sets them explicitly. Pi applies
+		// its own defaults (contextWindow 128000, maxTokens 16384) to a model
+		// definition that omits them, so writing ContextLimit()/OutputLimit()
+		// unconditionally would push canonical's defaults onto every model
+		// that never asked for them.
+		if m.Context > 0 {
+			entry["contextWindow"] = m.Context
+		}
+		if m.Output > 0 {
+			entry["maxTokens"] = m.Output
+		}
 		modelEntries = append(modelEntries, entry)
 	}
 	if len(modelEntries) == 0 && b.Profile.Gateway.DefaultModel != "" {

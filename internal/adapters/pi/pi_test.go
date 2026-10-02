@@ -56,6 +56,41 @@ func TestPiRender(t *testing.T) {
 	first := modelList[0].(map[string]any)
 	assert.Equal(t, "claude-sonnet-4-6", first["id"])
 	assert.Equal(t, "Sonnet", first["name"])
+	// A model with no explicit limits must carry none, so pi keeps applying
+	// its own defaults rather than inheriting canonical's.
+	assert.NotContains(t, first, "contextWindow")
+	assert.NotContains(t, first, "maxTokens")
+}
+
+func TestPiRenderEmitsExplicitModelLimits(t *testing.T) {
+	home := t.TempDir()
+	ad := New(WithHome(home))
+	b := &canonical.Bundle{
+		Profile: canonical.Profile{
+			Gateway: canonical.Gateway{URL: "https://gw", Token: "dummy"},
+			Models: []canonical.Model{
+				{ID: "local/current-model", Alias: "Local", Context: 1048576, Output: 32768},
+				{ID: "bare/model"},
+			},
+		},
+	}
+	fs, err := ad.Render(b)
+	require.NoError(t, err)
+
+	seen := map[string]adapter.File{}
+	fs.ForEach(func(f adapter.File) { seen[f.Dest] = f })
+
+	var models map[string]any
+	require.NoError(t, json.Unmarshal(seen[filepath.Join(home, ".pi", "agent", "models.json")].Content, &models))
+	list := models["providers"].(map[string]any)["hs-gw"].(map[string]any)["models"].([]any)
+
+	withLimits := list[0].(map[string]any)
+	assert.InDelta(t, float64(1048576), withLimits["contextWindow"], 0)
+	assert.InDelta(t, float64(32768), withLimits["maxTokens"], 0)
+
+	withoutLimits := list[1].(map[string]any)
+	assert.NotContains(t, withoutLimits, "contextWindow")
+	assert.NotContains(t, withoutLimits, "maxTokens")
 }
 
 func TestPiRenderMergesExistingSettings(t *testing.T) {
