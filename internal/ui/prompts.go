@@ -5,7 +5,7 @@ package ui
 import (
 	"fmt"
 
-	"github.com/charmbracelet/huh"
+	"charm.land/huh/v2"
 )
 
 type msOpts struct {
