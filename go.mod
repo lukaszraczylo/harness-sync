@@ -14,7 +14,7 @@ require (
 
 require (
 	charm.land/bubbles/v2 v2.2.2 // indirect
-	charm.land/bubbletea/v2 v2.1.2 // indirect
+	charm.land/bubbletea/v2 v2.1.3 // indirect
 	charm.land/lipgloss/v2 v2.1.1 // indirect
 	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/catppuccin/go v0.3.0 // indirect
